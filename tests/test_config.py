@@ -9,7 +9,10 @@ def test_loads_default_config() -> None:
     config = load_config(Path("config/default.yaml"))
     assert config.model.path == "yolov8n.pt"
     assert config.model.imgsz == (256, 320)
-    assert config.model.classes is None
+    assert config.model.classes == (0,)
+    assert config.motion.enabled is False
+    assert config.motion.width == 160
+    assert config.motion.height == 120
     assert config.output.save_jsonl is True
 
 

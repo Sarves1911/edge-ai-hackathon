@@ -19,3 +19,29 @@ def test_run_summary() -> None:
     assert summary["throughput_fps"] == 4.0
     assert summary["detector_ms"]["p50"] == 15.0
 
+
+
+def test_run_summary_includes_motion_gate_metrics() -> None:
+    metrics = RunMetrics(model_load_ms=10.0)
+    metrics.add(
+        detector_ms=5.0,
+        frame_ms=6.0,
+        detections=1,
+        motion_ms=0.2,
+        motion_score=0.10,
+        motion_active=True,
+        motion_event=True,
+    )
+    metrics.add(
+        detector_ms=5.0,
+        frame_ms=6.0,
+        detections=1,
+        motion_ms=0.1,
+        motion_score=0.0,
+    )
+    summary = metrics.summary(elapsed_s=1.0)
+
+    assert summary["motion_gate"]["active_frames"] == 1
+    assert summary["motion_gate"]["events"] == 1
+    assert summary["motion_gate"]["active_frame_ratio"] == 0.5
+    assert summary["motion_gate"]["score_mean"] == 0.05

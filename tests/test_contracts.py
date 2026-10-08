@@ -1,4 +1,4 @@
-from edge_detector.contracts import Detection, FrameResult
+from edge_detector.contracts import Detection, FrameResult, MotionResult
 
 
 def test_frame_result_schema() -> None:
@@ -25,3 +25,26 @@ def test_frame_result_schema() -> None:
     assert result["detections"][0]["bbox_xyxy"] == [10.0, 20.0, 30.0, 40.0]
     assert result["detections"][0]["class_name"] == "person"
 
+
+
+def test_frame_result_can_include_motion_signal() -> None:
+    motion = MotionResult(
+        score=0.125,
+        changed_pixels=2400,
+        active=True,
+        event=True,
+        processing_ms=0.4,
+    )
+    result = FrameResult(
+        frame_index=1,
+        timestamp_ms=100.0,
+        width=640,
+        height=480,
+        detector_ms=5.0,
+        detections=(),
+        motion=motion,
+    ).to_dict()
+
+    assert result["motion"]["active"] is True
+    assert result["motion"]["event"] is True
+    assert result["motion"]["changed_pixels"] == 2400

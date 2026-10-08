@@ -5,10 +5,29 @@ model:
   imgsz: [256, 320]
   confidence: 0.25
   iou: 0.45
-  # null means every COCO class. Later, set a list such as [0, 2, 3, 5, 7].
+  # COCO class 0 = person.
   classes: [0]
   # null lets Ultralytics choose. Examples: cpu, mps, 0.
   device: null
+
+motion:
+  # Keep false for detector baseline/parity runs.
+  # Set true when testing the motion gate.
+  enabled: true
+
+  width: 160
+  height: 120
+
+  # Grayscale intensity difference required
+  # before a pixel counts as changed.
+  pixel_threshold: 25
+
+  # 192 pixels = 1% of 160x120.
+  minimum_changed_area: 192
+
+  # Prevent continuous movement from generating
+  # a new motion event on every frame.
+  cooldown_ms: 250
 
 pipeline:
   # null processes the complete input. Useful for quick smoke tests when overridden.

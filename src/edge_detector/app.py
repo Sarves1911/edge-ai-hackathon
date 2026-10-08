@@ -14,6 +14,7 @@ from .config import AppConfig, config_to_dict
 from .contracts import FrameResult
 from .media import MediaSource, RunSink
 from .metrics import RunMetrics
+from .motion import MotionGate
 
 
 def _source_stem(source: str) -> str:
@@ -46,6 +47,7 @@ def run_detection(config: AppConfig, source_name: str) -> tuple[Path, dict[str, 
     detector = YoloDetector(config.model)
     model_load_ms = (perf_counter() - model_load_started) * 1_000.0
     metrics = RunMetrics(model_load_ms=model_load_ms)
+    motion_gate = MotionGate(config.motion) if config.motion.enabled else None
 
     sink: RunSink | None = None
     run_started = perf_counter()
@@ -61,6 +63,11 @@ def run_detection(config: AppConfig, source_name: str) -> tuple[Path, dict[str, 
             )
             for packet in source.frames():
                 frame_started = perf_counter()
+                motion = (
+                    None
+                    if motion_gate is None
+                    else motion_gate.update(packet.image, packet.timestamp_ms)
+                )
                 detections, detector_ms = detector.detect(packet.image)
                 height, width = packet.image.shape[:2]
                 result = FrameResult(
@@ -70,6 +77,7 @@ def run_detection(config: AppConfig, source_name: str) -> tuple[Path, dict[str, 
                     height=int(height),
                     detector_ms=detector_ms,
                     detections=detections,
+                    motion=motion,
                 )
                 sink.write(packet, result)
                 frame_ms = (perf_counter() - frame_started) * 1_000.0
@@ -77,6 +85,10 @@ def run_detection(config: AppConfig, source_name: str) -> tuple[Path, dict[str, 
                     detector_ms=detector_ms,
                     frame_ms=frame_ms,
                     detections=len(detections),
+                    motion_ms=None if motion is None else motion.processing_ms,
+                    motion_score=None if motion is None else motion.score,
+                    motion_active=False if motion is None else motion.active,
+                    motion_event=False if motion is None else motion.event,
                 )
                 if (
                     config.pipeline.max_frames is not None

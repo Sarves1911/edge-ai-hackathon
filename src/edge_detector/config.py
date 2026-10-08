@@ -18,6 +18,16 @@ class ModelConfig:
 
 
 @dataclass(frozen=True)
+class MotionConfig:
+    enabled: bool = False
+    width: int = 160
+    height: int = 120
+    pixel_threshold: int = 25
+    minimum_changed_area: int = 192
+    cooldown_ms: float = 250.0
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     max_frames: int | None = None
 
@@ -33,6 +43,7 @@ class OutputConfig:
 @dataclass(frozen=True)
 class AppConfig:
     model: ModelConfig = ModelConfig()
+    motion: MotionConfig = MotionConfig()
     pipeline: PipelineConfig = PipelineConfig()
     output: OutputConfig = OutputConfig()
 
@@ -72,6 +83,17 @@ def _validate(config: AppConfig) -> AppConfig:
         raise ValueError("model.confidence must be between 0 and 1")
     if not 0.0 <= config.model.iou <= 1.0:
         raise ValueError("model.iou must be between 0 and 1")
+    if config.motion.width <= 0 or config.motion.height <= 0:
+        raise ValueError("motion width/height must be positive")
+    if not 1 <= config.motion.pixel_threshold <= 255:
+        raise ValueError("motion.pixel_threshold must be between 1 and 255")
+    total_motion_pixels = config.motion.width * config.motion.height
+    if not 1 <= config.motion.minimum_changed_area <= total_motion_pixels:
+        raise ValueError(
+            "motion.minimum_changed_area must be between 1 and motion.width * motion.height"
+        )
+    if config.motion.cooldown_ms < 0:
+        raise ValueError("motion.cooldown_ms cannot be negative")
     if config.pipeline.max_frames is not None and config.pipeline.max_frames <= 0:
         raise ValueError("pipeline.max_frames must be positive or null")
     if config.output.line_thickness <= 0:
@@ -84,13 +106,15 @@ def load_config(path: str | Path) -> AppConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ValueError("The config root must be a mapping")
-    _reject_unknown(raw, {"model", "pipeline", "output"}, "config root")
+    _reject_unknown(raw, {"model", "motion", "pipeline", "output"}, "config root")
 
     model_raw = raw.get("model", {}) or {}
+    motion_raw = raw.get("motion", {}) or {}
     pipeline_raw = raw.get("pipeline", {}) or {}
     output_raw = raw.get("output", {}) or {}
     for section_name, section in (
         ("model", model_raw),
+        ("motion", motion_raw),
         ("pipeline", pipeline_raw),
         ("output", output_raw),
     ):
@@ -101,6 +125,18 @@ def load_config(path: str | Path) -> AppConfig:
         model_raw,
         {"path", "imgsz", "confidence", "iou", "classes", "device"},
         "model",
+    )
+    _reject_unknown(
+        motion_raw,
+        {
+            "enabled",
+            "width",
+            "height",
+            "pixel_threshold",
+            "minimum_changed_area",
+            "cooldown_ms",
+        },
+        "motion",
     )
     _reject_unknown(pipeline_raw, {"max_frames"}, "pipeline")
     _reject_unknown(
@@ -121,6 +157,20 @@ def load_config(path: str | Path) -> AppConfig:
             else str(model_raw["device"])
         ),
     )
+    motion = MotionConfig(
+        enabled=bool(motion_raw.get("enabled", MotionConfig.enabled)),
+        width=int(motion_raw.get("width", MotionConfig.width)),
+        height=int(motion_raw.get("height", MotionConfig.height)),
+        pixel_threshold=int(
+            motion_raw.get("pixel_threshold", MotionConfig.pixel_threshold)
+        ),
+        minimum_changed_area=int(
+            motion_raw.get(
+                "minimum_changed_area", MotionConfig.minimum_changed_area
+            )
+        ),
+        cooldown_ms=float(motion_raw.get("cooldown_ms", MotionConfig.cooldown_ms)),
+    )
     pipeline = PipelineConfig(
         max_frames=(
             None
@@ -138,7 +188,9 @@ def load_config(path: str | Path) -> AppConfig:
             output_raw.get("line_thickness", OutputConfig.line_thickness)
         ),
     )
-    return _validate(AppConfig(model=model, pipeline=pipeline, output=output))
+    return _validate(
+        AppConfig(model=model, motion=motion, pipeline=pipeline, output=output)
+    )
 
 
 def apply_overrides(
@@ -182,7 +234,9 @@ def apply_overrides(
         ),
         save_jsonl=config.output.save_jsonl if save_jsonl is None else save_jsonl,
     )
-    return _validate(AppConfig(model=model, pipeline=pipeline, output=output))
+    return _validate(
+        AppConfig(model=model, motion=config.motion, pipeline=pipeline, output=output)
+    )
 
 
 def config_to_dict(config: AppConfig) -> dict[str, Any]:
@@ -194,6 +248,14 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
             "iou": config.model.iou,
             "classes": None if config.model.classes is None else list(config.model.classes),
             "device": config.model.device,
+        },
+        "motion": {
+            "enabled": config.motion.enabled,
+            "width": config.motion.width,
+            "height": config.motion.height,
+            "pixel_threshold": config.motion.pixel_threshold,
+            "minimum_changed_area": config.motion.minimum_changed_area,
+            "cooldown_ms": config.motion.cooldown_ms,
         },
         "pipeline": {"max_frames": config.pipeline.max_frames},
         "output": {
