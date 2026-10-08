@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edge-object-detector"
+version = "0.1.0"
+description = "Problem-agnostic object-detection baseline for an edge-AI hackathon"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26,<3",
+  "opencv-python>=4.10,<5",
+  "PyYAML>=6.0,<7",
+  "ultralytics>=8.3,<9",
+]
+
+[project.scripts]
+edge-detect = "edge_detector.cli:main"
+
+[project.optional-dependencies]
+export = [
+  "onnx>=1.17,<2",
+  "onnxruntime>=1.20,<2",
+  "onnxslim>=0.1.82,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edge_detector"]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

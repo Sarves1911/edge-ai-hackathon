@@ -1,0 +1,22 @@
+model:
+  # Ultralytics downloads this on first use. Replace it with a local path later.
+  path: yolov8n.pt
+  # Height, width. The sprint's portable edge baseline is 320 x 256.
+  imgsz: [256, 320]
+  confidence: 0.25
+  iou: 0.45
+  # null means every COCO class. Later, set a list such as [0, 2, 3, 5, 7].
+  classes: null
+  # null lets Ultralytics choose. Examples: cpu, mps, 0.
+  device: null
+
+pipeline:
+  # null processes the complete input. Useful for quick smoke tests when overridden.
+  max_frames: null
+
+output:
+  directory: runs/detect
+  save_annotated: true
+  save_jsonl: true
+  line_thickness: 2
+

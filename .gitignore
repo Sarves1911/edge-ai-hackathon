@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Generated runs, recordings, and model binaries do not belong in git.
+runs/*
+!runs/.gitkeep
+models/*
+!models/.gitkeep
+recordings/
+*.pt
+*.onnx
+*.engine
+*.mp4
+*.mkv
+
+runs/
