@@ -13,7 +13,16 @@ def test_loads_default_config() -> None:
     assert config.motion.enabled is False
     assert config.motion.width == 160
     assert config.motion.height == 120
+    assert config.scheduler.mode == "always"
+    assert config.scheduler.idle_poll_ms == 2000.0
     assert config.output.save_jsonl is True
+
+
+def test_loads_adaptive_config() -> None:
+    config = load_config(Path("config/adaptive.yaml"))
+    assert config.motion.enabled is True
+    assert config.scheduler.mode == "adaptive"
+    assert config.scheduler.active_interval_ms == 100.0
 
 
 def test_rejects_unknown_key(tmp_path: Path) -> None:
@@ -31,11 +40,15 @@ def test_applies_cli_overrides() -> None:
         classes=(0, 2),
         max_frames=5,
         output_directory="runs/test",
+        motion_enabled=True,
+        scheduler_mode="adaptive",
     )
     assert changed.model.confidence == 0.4
     assert changed.model.classes == (0, 2)
     assert changed.pipeline.max_frames == 5
     assert changed.output.directory == "runs/test"
+    assert changed.motion.enabled is True
+    assert changed.scheduler.mode == "adaptive"
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.1])

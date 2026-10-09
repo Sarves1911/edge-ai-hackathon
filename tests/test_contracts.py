@@ -1,4 +1,9 @@
-from edge_detector.contracts import Detection, FrameResult, MotionResult
+from edge_detector.contracts import (
+    Detection,
+    FrameResult,
+    InferenceStatus,
+    MotionResult,
+)
 
 
 def test_frame_result_schema() -> None:
@@ -24,6 +29,8 @@ def test_frame_result_schema() -> None:
     assert result["frame"] == {"width": 640, "height": 480}
     assert result["detections"][0]["bbox_xyxy"] == [10.0, 20.0, 30.0, 40.0]
     assert result["detections"][0]["class_name"] == "person"
+    assert result["inference"]["ran"] is True
+    assert result["inference"]["result_age_ms"] == 0.0
 
 
 
@@ -48,3 +55,28 @@ def test_frame_result_can_include_motion_signal() -> None:
     assert result["motion"]["active"] is True
     assert result["motion"]["event"] is True
     assert result["motion"]["changed_pixels"] == 2400
+
+
+def test_frame_result_marks_reused_detections_as_stale() -> None:
+    result = FrameResult(
+        frame_index=2,
+        timestamp_ms=200.0,
+        width=640,
+        height=480,
+        detector_ms=None,
+        detections=(),
+        inference=InferenceStatus(
+            ran=False,
+            reason="idle_skip",
+            result_age_ms=100.0,
+            reused_detections=True,
+        ),
+    ).to_dict()
+
+    assert result["timing"]["detector_ms"] is None
+    assert result["inference"] == {
+        "ran": False,
+        "reason": "idle_skip",
+        "result_age_ms": 100.0,
+        "reused_detections": True,
+    }

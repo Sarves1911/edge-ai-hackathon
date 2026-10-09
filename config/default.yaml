@@ -13,7 +13,7 @@ model:
 motion:
   # Keep false for detector baseline/parity runs.
   # Set true when testing the motion gate.
-  enabled: true
+  enabled: false
 
   width: 160
   height: 120
@@ -28,6 +28,25 @@ motion:
   # Prevent continuous movement from generating
   # a new motion event on every frame.
   cooldown_ms: 250
+
+scheduler:
+  # "always" preserves the correctness/parity baseline. Use
+  # config/adaptive.yaml or --mode adaptive to enable gated inference.
+  mode: always
+
+  # Adaptive mode runs at most this often while motion is active.
+  active_interval_ms: 100
+
+  # Continue frequent inference briefly after motion stops. This lets a
+  # person enter, stop moving, and remain represented by a recent result.
+  active_hold_ms: 1500
+
+  # Safety poll while idle so a missed motion event cannot suppress
+  # neural inference forever.
+  idle_poll_ms: 2000
+
+  # Always infer on initial frames before adaptive gating begins.
+  startup_frames: 3
 
 pipeline:
   # null processes the complete input. Useful for quick smoke tests when overridden.

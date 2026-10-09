@@ -42,14 +42,31 @@ class MotionResult:
 
 
 @dataclass(frozen=True)
+class InferenceStatus:
+    ran: bool = True
+    reason: str = "always"
+    result_age_ms: float | None = 0.0
+    reused_detections: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ran": self.ran,
+            "reason": self.reason,
+            "result_age_ms": self.result_age_ms,
+            "reused_detections": self.reused_detections,
+        }
+
+
+@dataclass(frozen=True)
 class FrameResult:
     frame_index: int
     timestamp_ms: float
     width: int
     height: int
-    detector_ms: float
+    detector_ms: float | None
     detections: tuple[Detection, ...]
     motion: MotionResult | None = None
+    inference: InferenceStatus = InferenceStatus()
 
     def to_dict(self) -> dict[str, Any]:
         record = {
@@ -57,6 +74,7 @@ class FrameResult:
             "timestamp_ms": self.timestamp_ms,
             "frame": {"width": self.width, "height": self.height},
             "timing": {"detector_ms": self.detector_ms},
+            "inference": self.inference.to_dict(),
             "detections": [detection.to_dict() for detection in self.detections],
         }
         if self.motion is not None:

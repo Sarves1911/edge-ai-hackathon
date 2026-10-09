@@ -30,22 +30,43 @@ class RunMetrics:
     motion_scores: list[float] = field(default_factory=list)
     motion_active_frames: int = 0
     motion_events: int = 0
+    inference_calls: int = 0
+    skipped_frames: int = 0
+    reused_detection_frames: int = 0
+    result_age_ms: list[float] = field(default_factory=list)
+    inference_reasons: dict[str, int] = field(default_factory=dict)
     total_detections: int = 0
 
     def add(
         self,
         *,
-        detector_ms: float,
+        detector_ms: float | None,
         frame_ms: float,
         detections: int,
         motion_ms: float | None = None,
         motion_score: float | None = None,
         motion_active: bool = False,
         motion_event: bool = False,
+        inference_ran: bool = True,
+        inference_reason: str = "always",
+        result_age_ms: float | None = 0.0,
+        reused_detections: bool = False,
     ) -> None:
-        self.detector_ms.append(detector_ms)
+        if detector_ms is not None:
+            self.detector_ms.append(detector_ms)
         self.frame_ms.append(frame_ms)
         self.total_detections += detections
+        if inference_ran:
+            self.inference_calls += 1
+        else:
+            self.skipped_frames += 1
+        if reused_detections:
+            self.reused_detection_frames += 1
+        if result_age_ms is not None:
+            self.result_age_ms.append(result_age_ms)
+        self.inference_reasons[inference_reason] = (
+            self.inference_reasons.get(inference_reason, 0) + 1
+        )
         if motion_ms is not None:
             self.motion_ms.append(motion_ms)
         if motion_score is not None:
@@ -79,6 +100,24 @@ class RunMetrics:
                 "mean": (
                     0.0 if not self.frame_ms else sum(self.frame_ms) / len(self.frame_ms)
                 ),
+            },
+            "inference": {
+                "calls": self.inference_calls,
+                "skipped_frames": self.skipped_frames,
+                "duty_cycle": (
+                    0.0 if frames == 0 else self.inference_calls / frames
+                ),
+                "reused_detection_frames": self.reused_detection_frames,
+                "reasons": dict(sorted(self.inference_reasons.items())),
+                "result_age_ms": {
+                    "p50": percentile(self.result_age_ms, 50),
+                    "p95": percentile(self.result_age_ms, 95),
+                    "mean": (
+                        0.0
+                        if not self.result_age_ms
+                        else sum(self.result_age_ms) / len(self.result_age_ms)
+                    ),
+                },
             },
         }
         if self.motion_ms:

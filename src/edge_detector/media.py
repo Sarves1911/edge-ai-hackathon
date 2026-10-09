@@ -80,15 +80,23 @@ class MediaSource:
             self._capture.release()
 
 
-def draw_detections(frame: Any, detections: tuple[Detection, ...], thickness: int) -> Any:
+def draw_detections(
+    frame: Any,
+    detections: tuple[Detection, ...],
+    thickness: int,
+    *,
+    cached_age_ms: float | None = None,
+) -> Any:
     cv2 = _cv2()
     annotated = frame.copy()
     for detection in detections:
         start = (round(detection.x1), round(detection.y1))
         end = (round(detection.x2), round(detection.y2))
-        color = (37, 211, 102)
+        color = (37, 211, 102) if cached_age_ms is None else (0, 165, 255)
         cv2.rectangle(annotated, start, end, color, thickness)
         label = f"{detection.class_name} {detection.confidence:.2f}"
+        if cached_age_ms is not None:
+            label += f" cached {cached_age_ms:.0f}ms"
         text_y = max(18, start[1] - 7)
         cv2.putText(
             annotated,
@@ -134,7 +142,17 @@ class RunSink:
         if not self.save_annotated:
             return
         cv2 = _cv2()
-        annotated = draw_detections(packet.image, result.detections, self.line_thickness)
+        cached_age_ms = (
+            result.inference.result_age_ms
+            if result.inference.reused_detections
+            else None
+        )
+        annotated = draw_detections(
+            packet.image,
+            result.detections,
+            self.line_thickness,
+            cached_age_ms=cached_age_ms,
+        )
         if self.source_kind == "image":
             self.annotated_path = self.run_directory / "annotated.jpg"
             if not cv2.imwrite(str(self.annotated_path), annotated):

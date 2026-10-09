@@ -28,6 +28,15 @@ class MotionConfig:
 
 
 @dataclass(frozen=True)
+class SchedulerConfig:
+    mode: str = "always"
+    active_interval_ms: float = 100.0
+    active_hold_ms: float = 1_500.0
+    idle_poll_ms: float = 2_000.0
+    startup_frames: int = 3
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     max_frames: int | None = None
 
@@ -44,6 +53,7 @@ class OutputConfig:
 class AppConfig:
     model: ModelConfig = ModelConfig()
     motion: MotionConfig = MotionConfig()
+    scheduler: SchedulerConfig = SchedulerConfig()
     pipeline: PipelineConfig = PipelineConfig()
     output: OutputConfig = OutputConfig()
 
@@ -94,6 +104,18 @@ def _validate(config: AppConfig) -> AppConfig:
         )
     if config.motion.cooldown_ms < 0:
         raise ValueError("motion.cooldown_ms cannot be negative")
+    if config.scheduler.mode not in {"always", "adaptive"}:
+        raise ValueError("scheduler.mode must be 'always' or 'adaptive'")
+    if config.scheduler.active_interval_ms <= 0:
+        raise ValueError("scheduler.active_interval_ms must be positive")
+    if config.scheduler.active_hold_ms < 0:
+        raise ValueError("scheduler.active_hold_ms cannot be negative")
+    if config.scheduler.idle_poll_ms <= 0:
+        raise ValueError("scheduler.idle_poll_ms must be positive")
+    if config.scheduler.startup_frames < 1:
+        raise ValueError("scheduler.startup_frames must be at least 1")
+    if config.scheduler.mode == "adaptive" and not config.motion.enabled:
+        raise ValueError("adaptive scheduler mode requires motion.enabled=true")
     if config.pipeline.max_frames is not None and config.pipeline.max_frames <= 0:
         raise ValueError("pipeline.max_frames must be positive or null")
     if config.output.line_thickness <= 0:
@@ -106,15 +128,19 @@ def load_config(path: str | Path) -> AppConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ValueError("The config root must be a mapping")
-    _reject_unknown(raw, {"model", "motion", "pipeline", "output"}, "config root")
+    _reject_unknown(
+        raw, {"model", "motion", "scheduler", "pipeline", "output"}, "config root"
+    )
 
     model_raw = raw.get("model", {}) or {}
     motion_raw = raw.get("motion", {}) or {}
+    scheduler_raw = raw.get("scheduler", {}) or {}
     pipeline_raw = raw.get("pipeline", {}) or {}
     output_raw = raw.get("output", {}) or {}
     for section_name, section in (
         ("model", model_raw),
         ("motion", motion_raw),
+        ("scheduler", scheduler_raw),
         ("pipeline", pipeline_raw),
         ("output", output_raw),
     ):
@@ -137,6 +163,17 @@ def load_config(path: str | Path) -> AppConfig:
             "cooldown_ms",
         },
         "motion",
+    )
+    _reject_unknown(
+        scheduler_raw,
+        {
+            "mode",
+            "active_interval_ms",
+            "active_hold_ms",
+            "idle_poll_ms",
+            "startup_frames",
+        },
+        "scheduler",
     )
     _reject_unknown(pipeline_raw, {"max_frames"}, "pipeline")
     _reject_unknown(
@@ -171,6 +208,23 @@ def load_config(path: str | Path) -> AppConfig:
         ),
         cooldown_ms=float(motion_raw.get("cooldown_ms", MotionConfig.cooldown_ms)),
     )
+    scheduler = SchedulerConfig(
+        mode=str(scheduler_raw.get("mode", SchedulerConfig.mode)),
+        active_interval_ms=float(
+            scheduler_raw.get(
+                "active_interval_ms", SchedulerConfig.active_interval_ms
+            )
+        ),
+        active_hold_ms=float(
+            scheduler_raw.get("active_hold_ms", SchedulerConfig.active_hold_ms)
+        ),
+        idle_poll_ms=float(
+            scheduler_raw.get("idle_poll_ms", SchedulerConfig.idle_poll_ms)
+        ),
+        startup_frames=int(
+            scheduler_raw.get("startup_frames", SchedulerConfig.startup_frames)
+        ),
+    )
     pipeline = PipelineConfig(
         max_frames=(
             None
@@ -189,7 +243,13 @@ def load_config(path: str | Path) -> AppConfig:
         ),
     )
     return _validate(
-        AppConfig(model=model, motion=motion, pipeline=pipeline, output=output)
+        AppConfig(
+            model=model,
+            motion=motion,
+            scheduler=scheduler,
+            pipeline=pipeline,
+            output=output,
+        )
     )
 
 
@@ -202,6 +262,12 @@ def apply_overrides(
     iou: float | None = None,
     classes: tuple[int, ...] | None | object = ...,
     device: str | None | object = ...,
+    motion_enabled: bool | None = None,
+    scheduler_mode: str | None = None,
+    active_interval_ms: float | None = None,
+    active_hold_ms: float | None = None,
+    idle_poll_ms: float | None = None,
+    startup_frames: int | None = None,
     max_frames: int | None = None,
     output_directory: str | None = None,
     save_annotated: bool | None = None,
@@ -215,6 +281,38 @@ def apply_overrides(
         iou=config.model.iou if iou is None else iou,
         classes=config.model.classes if classes is ... else classes,
         device=config.model.device if device is ... else device,
+    )
+    motion = replace(
+        config.motion,
+        enabled=(
+            config.motion.enabled if motion_enabled is None else motion_enabled
+        ),
+    )
+    scheduler = replace(
+        config.scheduler,
+        mode=(
+            config.scheduler.mode if scheduler_mode is None else scheduler_mode
+        ),
+        active_interval_ms=(
+            config.scheduler.active_interval_ms
+            if active_interval_ms is None
+            else active_interval_ms
+        ),
+        active_hold_ms=(
+            config.scheduler.active_hold_ms
+            if active_hold_ms is None
+            else active_hold_ms
+        ),
+        idle_poll_ms=(
+            config.scheduler.idle_poll_ms
+            if idle_poll_ms is None
+            else idle_poll_ms
+        ),
+        startup_frames=(
+            config.scheduler.startup_frames
+            if startup_frames is None
+            else startup_frames
+        ),
     )
     pipeline = replace(
         config.pipeline,
@@ -235,7 +333,13 @@ def apply_overrides(
         save_jsonl=config.output.save_jsonl if save_jsonl is None else save_jsonl,
     )
     return _validate(
-        AppConfig(model=model, motion=config.motion, pipeline=pipeline, output=output)
+        AppConfig(
+            model=model,
+            motion=motion,
+            scheduler=scheduler,
+            pipeline=pipeline,
+            output=output,
+        )
     )
 
 
@@ -256,6 +360,13 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
             "pixel_threshold": config.motion.pixel_threshold,
             "minimum_changed_area": config.motion.minimum_changed_area,
             "cooldown_ms": config.motion.cooldown_ms,
+        },
+        "scheduler": {
+            "mode": config.scheduler.mode,
+            "active_interval_ms": config.scheduler.active_interval_ms,
+            "active_hold_ms": config.scheduler.active_hold_ms,
+            "idle_poll_ms": config.scheduler.idle_poll_ms,
+            "startup_frames": config.scheduler.startup_frames,
         },
         "pipeline": {"max_frames": config.pipeline.max_frames},
         "output": {

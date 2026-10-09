@@ -1,0 +1,31 @@
+model:
+  path: yolov8n.onnx
+  imgsz: [256, 320]
+  confidence: 0.25
+  iou: 0.45
+  classes: [0]
+  device: cpu
+
+motion:
+  enabled: true
+  width: 160
+  height: 120
+  pixel_threshold: 25
+  minimum_changed_area: 192
+  cooldown_ms: 250
+
+scheduler:
+  mode: adaptive
+  active_interval_ms: 100
+  active_hold_ms: 1500
+  idle_poll_ms: 2000
+  startup_frames: 3
+
+pipeline:
+  max_frames: null
+
+output:
+  directory: runs/adaptive
+  save_annotated: true
+  save_jsonl: true
+  line_thickness: 2

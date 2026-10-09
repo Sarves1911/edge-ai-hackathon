@@ -40,6 +40,15 @@ def _build_parser() -> argparse.ArgumentParser:
     # not providing the flag, so it can clear a class filter from the YAML config.
     run.add_argument("--classes", type=_parse_classes, default=argparse.SUPPRESS)
     run.add_argument("--device", help="Examples: cpu, mps, 0")
+    run.add_argument(
+        "--mode",
+        choices=("always", "adaptive"),
+        help="Always run inference or use motion-gated adaptive scheduling",
+    )
+    run.add_argument("--active-interval-ms", type=float)
+    run.add_argument("--active-hold-ms", type=float)
+    run.add_argument("--idle-poll-ms", type=float)
+    run.add_argument("--startup-frames", type=int)
     run.add_argument("--max-frames", type=int)
     run.add_argument("--output")
     run.add_argument("--no-annotated", action="store_true")
@@ -75,6 +84,12 @@ def _run_command(args: argparse.Namespace) -> int:
         iou=args.iou,
         classes=classes_override,
         device=config.model.device if args.device is None else args.device,
+        motion_enabled=True if args.mode == "adaptive" else None,
+        scheduler_mode=args.mode,
+        active_interval_ms=args.active_interval_ms,
+        active_hold_ms=args.active_hold_ms,
+        idle_poll_ms=args.idle_poll_ms,
+        startup_frames=args.startup_frames,
         max_frames=args.max_frames,
         output_directory=args.output,
         save_annotated=False if args.no_annotated else None,
