@@ -67,13 +67,17 @@ class FrameResult:
     detections: tuple[Detection, ...]
     motion: MotionResult | None = None
     inference: InferenceStatus = InferenceStatus()
+    capture_to_result_ms: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         record = {
             "frame_index": self.frame_index,
             "timestamp_ms": self.timestamp_ms,
             "frame": {"width": self.width, "height": self.height},
-            "timing": {"detector_ms": self.detector_ms},
+            "timing": {
+                "detector_ms": self.detector_ms,
+                "capture_to_result_ms": self.capture_to_result_ms,
+            },
             "inference": self.inference.to_dict(),
             "detections": [detection.to_dict() for detection in self.detections],
         }

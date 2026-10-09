@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Event, Thread
+from time import perf_counter
 from typing import Any, Iterator, TextIO
 
 from .contracts import Detection, FrameResult
+from .latest import LatestValueBuffer
 
 IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 
@@ -25,6 +28,7 @@ class FramePacket:
     index: int
     timestamp_ms: float
     image: Any
+    captured_at_monotonic_ms: float | None = None
 
 
 class MediaSource:
@@ -34,9 +38,17 @@ class MediaSource:
         self.fps = 10.0
         self._image: Any | None = None
         self._capture: Any | None = None
+        self._opened_at_monotonic_ms: float | None = None
+        self._capture_mode = "sequential"
+        self._captured_frames = 0
+        self._delivered_frames = 0
+        self._latest_buffer: LatestValueBuffer[FramePacket] | None = None
+        self._latest_stop = Event()
+        self._latest_thread: Thread | None = None
 
     def __enter__(self) -> "MediaSource":
         cv2 = _cv2()
+        self._latest_stop.clear()
         source_path = Path(self.source)
         if source_path.suffix.lower() in IMAGE_SUFFIXES:
             self.kind = "image"
@@ -55,27 +67,131 @@ class MediaSource:
             raise RuntimeError(f"Could not open video/camera source: {self.source}")
         measured_fps = float(self._capture.get(cv2.CAP_PROP_FPS))
         self.fps = measured_fps if measured_fps > 0.0 else 10.0
+        self._opened_at_monotonic_ms = perf_counter() * 1_000.0
         return self
 
-    def frames(self) -> Iterator[FramePacket]:
+    def _make_packet(self, index: int, frame: Any) -> FramePacket:
+        captured_at_ms = perf_counter() * 1_000.0
+        if self.kind == "camera":
+            assert self._opened_at_monotonic_ms is not None
+            timestamp_ms = captured_at_ms - self._opened_at_monotonic_ms
+        else:
+            cv2 = _cv2()
+            assert self._capture is not None
+            timestamp_ms = float(self._capture.get(cv2.CAP_PROP_POS_MSEC))
+            if timestamp_ms <= 0.0 and index > 0:
+                timestamp_ms = index * 1_000.0 / self.fps
+        return FramePacket(
+            index=index,
+            timestamp_ms=timestamp_ms,
+            image=frame,
+            captured_at_monotonic_ms=captured_at_ms,
+        )
+
+    def _sequential_frames(self) -> Iterator[FramePacket]:
+        self._capture_mode = "sequential"
         if self.kind == "image":
-            yield FramePacket(index=0, timestamp_ms=0.0, image=self._image)
+            self._captured_frames += 1
+            self._delivered_frames += 1
+            yield FramePacket(
+                index=0,
+                timestamp_ms=0.0,
+                image=self._image,
+                captured_at_monotonic_ms=perf_counter() * 1_000.0,
+            )
             return
 
-        cv2 = _cv2()
         assert self._capture is not None
         index = 0
         while True:
             ok, frame = self._capture.read()
             if not ok:
                 break
-            timestamp_ms = float(self._capture.get(cv2.CAP_PROP_POS_MSEC))
-            if timestamp_ms <= 0.0 and index > 0:
-                timestamp_ms = index * 1_000.0 / self.fps
-            yield FramePacket(index=index, timestamp_ms=timestamp_ms, image=frame)
+            packet = self._make_packet(index, frame)
+            self._captured_frames += 1
+            self._delivered_frames += 1
+            yield packet
             index += 1
 
+    def _capture_latest(self, buffer: LatestValueBuffer[FramePacket]) -> None:
+        assert self._capture is not None
+        index = 0
+        try:
+            while not self._latest_stop.is_set():
+                ok, frame = self._capture.read()
+                if not ok:
+                    break
+                packet = self._make_packet(index, frame)
+                self._captured_frames += 1
+                if not buffer.publish(packet):
+                    break
+                index += 1
+        finally:
+            buffer.close()
+
+    def _latest_frames(self) -> Iterator[FramePacket]:
+        if self.kind != "camera":
+            yield from self._sequential_frames()
+            return
+
+        self._capture_mode = "latest"
+        buffer: LatestValueBuffer[FramePacket] = LatestValueBuffer()
+        self._latest_buffer = buffer
+        thread = Thread(
+            target=self._capture_latest,
+            args=(buffer,),
+            name="edge-camera-capture",
+            daemon=True,
+        )
+        self._latest_thread = thread
+        thread.start()
+        try:
+            while True:
+                packet = buffer.take()
+                if packet is None:
+                    if buffer.closed:
+                        break
+                    continue
+                self._delivered_frames += 1
+                yield packet
+        finally:
+            self._latest_stop.set()
+            buffer.close()
+
+    def frames(self, *, latest_only: bool = False) -> Iterator[FramePacket]:
+        if latest_only:
+            yield from self._latest_frames()
+        else:
+            yield from self._sequential_frames()
+
+    def capture_summary(self) -> dict[str, float | int | str]:
+        replaced = (
+            0
+            if self._latest_buffer is None
+            else self._latest_buffer.stats()["replaced"]
+        )
+        return {
+            "mode": self._capture_mode,
+            "captured_frames": self._captured_frames,
+            "delivered_frames": self._delivered_frames,
+            "replaced_frames": replaced,
+            "replacement_ratio": (
+                0.0
+                if self._captured_frames == 0
+                else replaced / self._captured_frames
+            ),
+        }
+
     def __exit__(self, *_: object) -> None:
+        self._latest_stop.set()
+        if self._latest_buffer is not None:
+            self._latest_buffer.close()
+        if self._latest_thread is not None:
+            self._latest_thread.join(timeout=1.0)
+            if self._latest_thread.is_alive() and self._capture is not None:
+                # Some camera backends need release() to unblock a pending read.
+                self._capture.release()
+                self._latest_thread.join(timeout=1.0)
         if self._capture is not None:
             self._capture.release()
 

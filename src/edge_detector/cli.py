@@ -49,6 +49,16 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--active-hold-ms", type=float)
     run.add_argument("--idle-poll-ms", type=float)
     run.add_argument("--startup-frames", type=int)
+    run.add_argument(
+        "--live-capture-mode",
+        choices=("sequential", "latest"),
+        help="Live-camera buffering policy; recorded files stay sequential",
+    )
+    run.add_argument(
+        "--simulate-detector-delay-ms",
+        type=float,
+        help="Testing only: sleep before each detector call",
+    )
     run.add_argument("--max-frames", type=int)
     run.add_argument("--output")
     run.add_argument("--no-annotated", action="store_true")
@@ -90,6 +100,8 @@ def _run_command(args: argparse.Namespace) -> int:
         active_hold_ms=args.active_hold_ms,
         idle_poll_ms=args.idle_poll_ms,
         startup_frames=args.startup_frames,
+        live_capture_mode=args.live_capture_mode,
+        simulated_detector_delay_ms=args.simulate_detector_delay_ms,
         max_frames=args.max_frames,
         output_directory=args.output,
         save_annotated=False if args.no_annotated else None,

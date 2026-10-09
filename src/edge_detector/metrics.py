@@ -34,6 +34,7 @@ class RunMetrics:
     skipped_frames: int = 0
     reused_detection_frames: int = 0
     result_age_ms: list[float] = field(default_factory=list)
+    capture_to_result_ms: list[float] = field(default_factory=list)
     inference_reasons: dict[str, int] = field(default_factory=dict)
     total_detections: int = 0
 
@@ -51,6 +52,7 @@ class RunMetrics:
         inference_reason: str = "always",
         result_age_ms: float | None = 0.0,
         reused_detections: bool = False,
+        capture_to_result_ms: float | None = None,
     ) -> None:
         if detector_ms is not None:
             self.detector_ms.append(detector_ms)
@@ -64,6 +66,8 @@ class RunMetrics:
             self.reused_detection_frames += 1
         if result_age_ms is not None:
             self.result_age_ms.append(result_age_ms)
+        if capture_to_result_ms is not None:
+            self.capture_to_result_ms.append(capture_to_result_ms)
         self.inference_reasons[inference_reason] = (
             self.inference_reasons.get(inference_reason, 0) + 1
         )
@@ -79,6 +83,7 @@ class RunMetrics:
     def summary(self, elapsed_s: float | None = None) -> dict[str, Any]:
         elapsed = perf_counter() - self.started_at if elapsed_s is None else elapsed_s
         frames = len(self.frame_ms)
+        steady_detector_ms = self.detector_ms[1:]
         summary: dict[str, Any] = {
             "frames": frames,
             "detections": self.total_detections,
@@ -86,6 +91,7 @@ class RunMetrics:
             "throughput_fps": 0.0 if elapsed <= 0 else frames / elapsed,
             "model_load_ms": self.model_load_ms,
             "detector_ms": {
+                "first": self.detector_ms[0] if self.detector_ms else 0.0,
                 "p50": percentile(self.detector_ms, 50),
                 "p95": percentile(self.detector_ms, 95),
                 "mean": (
@@ -93,12 +99,32 @@ class RunMetrics:
                     if not self.detector_ms
                     else sum(self.detector_ms) / len(self.detector_ms)
                 ),
+                "steady_state": {
+                    "samples": len(steady_detector_ms),
+                    "p50": percentile(steady_detector_ms, 50),
+                    "p95": percentile(steady_detector_ms, 95),
+                    "mean": (
+                        0.0
+                        if not steady_detector_ms
+                        else sum(steady_detector_ms) / len(steady_detector_ms)
+                    ),
+                },
             },
             "frame_wall_ms": {
                 "p50": percentile(self.frame_ms, 50),
                 "p95": percentile(self.frame_ms, 95),
                 "mean": (
                     0.0 if not self.frame_ms else sum(self.frame_ms) / len(self.frame_ms)
+                ),
+            },
+            "capture_to_result_ms": {
+                "p50": percentile(self.capture_to_result_ms, 50),
+                "p95": percentile(self.capture_to_result_ms, 95),
+                "mean": (
+                    0.0
+                    if not self.capture_to_result_ms
+                    else sum(self.capture_to_result_ms)
+                    / len(self.capture_to_result_ms)
                 ),
             },
             "inference": {
@@ -128,6 +154,9 @@ class RunMetrics:
                     0.0 if frames == 0 else self.motion_active_frames / frames
                 ),
                 "score_mean": sum(self.motion_scores) / len(self.motion_scores),
+                "score_p50": percentile(self.motion_scores, 50),
+                "score_p95": percentile(self.motion_scores, 95),
+                "score_max": max(self.motion_scores),
                 "processing_ms": {
                     "p50": percentile(self.motion_ms, 50),
                     "p95": percentile(self.motion_ms, 95),

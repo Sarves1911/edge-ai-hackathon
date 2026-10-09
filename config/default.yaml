@@ -49,6 +49,13 @@ scheduler:
   startup_frames: 3
 
 pipeline:
+  # Sequential mode is deterministic for images and recorded videos.
+  # "latest" activates a one-slot drop-oldest buffer for live cameras only.
+  live_capture_mode: sequential
+
+  # Testing only: emulate a slower edge detector for backpressure sweeps.
+  simulated_detector_delay_ms: 0
+
   # null processes the complete input. Useful for quick smoke tests when overridden.
   max_frames: null
 

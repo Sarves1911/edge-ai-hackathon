@@ -23,6 +23,7 @@ def test_frame_result_schema() -> None:
         height=480,
         detector_ms=12.5,
         detections=(detection,),
+        capture_to_result_ms=6.25,
     ).to_dict()
 
     assert result["frame_index"] == 7
@@ -31,6 +32,7 @@ def test_frame_result_schema() -> None:
     assert result["detections"][0]["class_name"] == "person"
     assert result["inference"]["ran"] is True
     assert result["inference"]["result_age_ms"] == 0.0
+    assert result["timing"]["capture_to_result_ms"] == 6.25
 
 
 

@@ -38,6 +38,8 @@ class SchedulerConfig:
 
 @dataclass(frozen=True)
 class PipelineConfig:
+    live_capture_mode: str = "sequential"
+    simulated_detector_delay_ms: float = 0.0
     max_frames: int | None = None
 
 
@@ -116,6 +118,14 @@ def _validate(config: AppConfig) -> AppConfig:
         raise ValueError("scheduler.startup_frames must be at least 1")
     if config.scheduler.mode == "adaptive" and not config.motion.enabled:
         raise ValueError("adaptive scheduler mode requires motion.enabled=true")
+    if config.pipeline.live_capture_mode not in {"sequential", "latest"}:
+        raise ValueError(
+            "pipeline.live_capture_mode must be 'sequential' or 'latest'"
+        )
+    if config.pipeline.simulated_detector_delay_ms < 0:
+        raise ValueError(
+            "pipeline.simulated_detector_delay_ms cannot be negative"
+        )
     if config.pipeline.max_frames is not None and config.pipeline.max_frames <= 0:
         raise ValueError("pipeline.max_frames must be positive or null")
     if config.output.line_thickness <= 0:
@@ -175,7 +185,11 @@ def load_config(path: str | Path) -> AppConfig:
         },
         "scheduler",
     )
-    _reject_unknown(pipeline_raw, {"max_frames"}, "pipeline")
+    _reject_unknown(
+        pipeline_raw,
+        {"live_capture_mode", "simulated_detector_delay_ms", "max_frames"},
+        "pipeline",
+    )
     _reject_unknown(
         output_raw,
         {"directory", "save_annotated", "save_jsonl", "line_thickness"},
@@ -226,6 +240,17 @@ def load_config(path: str | Path) -> AppConfig:
         ),
     )
     pipeline = PipelineConfig(
+        live_capture_mode=str(
+            pipeline_raw.get(
+                "live_capture_mode", PipelineConfig.live_capture_mode
+            )
+        ),
+        simulated_detector_delay_ms=float(
+            pipeline_raw.get(
+                "simulated_detector_delay_ms",
+                PipelineConfig.simulated_detector_delay_ms,
+            )
+        ),
         max_frames=(
             None
             if pipeline_raw.get("max_frames", PipelineConfig.max_frames) is None
@@ -268,6 +293,8 @@ def apply_overrides(
     active_hold_ms: float | None = None,
     idle_poll_ms: float | None = None,
     startup_frames: int | None = None,
+    live_capture_mode: str | None = None,
+    simulated_detector_delay_ms: float | None = None,
     max_frames: int | None = None,
     output_directory: str | None = None,
     save_annotated: bool | None = None,
@@ -316,6 +343,16 @@ def apply_overrides(
     )
     pipeline = replace(
         config.pipeline,
+        live_capture_mode=(
+            config.pipeline.live_capture_mode
+            if live_capture_mode is None
+            else live_capture_mode
+        ),
+        simulated_detector_delay_ms=(
+            config.pipeline.simulated_detector_delay_ms
+            if simulated_detector_delay_ms is None
+            else simulated_detector_delay_ms
+        ),
         max_frames=config.pipeline.max_frames if max_frames is None else max_frames,
     )
     output = replace(
@@ -368,7 +405,13 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
             "idle_poll_ms": config.scheduler.idle_poll_ms,
             "startup_frames": config.scheduler.startup_frames,
         },
-        "pipeline": {"max_frames": config.pipeline.max_frames},
+        "pipeline": {
+            "live_capture_mode": config.pipeline.live_capture_mode,
+            "simulated_detector_delay_ms": (
+                config.pipeline.simulated_detector_delay_ms
+            ),
+            "max_frames": config.pipeline.max_frames,
+        },
         "output": {
             "directory": config.output.directory,
             "save_annotated": config.output.save_annotated,

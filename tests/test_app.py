@@ -8,6 +8,7 @@ from edge_detector.config import (
     AppConfig,
     MotionConfig,
     OutputConfig,
+    PipelineConfig,
     SchedulerConfig,
 )
 from edge_detector.contracts import Detection
@@ -24,16 +25,29 @@ class _FakeDetector:
 
 
 class _FakeSource:
-    kind = "video"
     fps = 10.0
+
+    def __init__(self, kind: str = "video") -> None:
+        self.kind = kind
+        self.latest_only = False
 
     def __enter__(self) -> "_FakeSource":
         return self
 
-    def frames(self):
+    def frames(self, *, latest_only: bool = False):
+        self.latest_only = latest_only
         frame = np.zeros((120, 160, 3), dtype=np.uint8)
         for index, timestamp_ms in enumerate((0.0, 100.0, 200.0, 1_000.0)):
             yield FramePacket(index=index, timestamp_ms=timestamp_ms, image=frame)
+
+    def capture_summary(self) -> dict[str, float | int | str]:
+        return {
+            "mode": "latest" if self.latest_only else "sequential",
+            "captured_frames": 4,
+            "delivered_frames": 4,
+            "replaced_frames": 0,
+            "replacement_ratio": 0.0,
+        }
 
     def __exit__(self, *_: object) -> None:
         return None
@@ -79,3 +93,32 @@ def test_adaptive_app_skips_detector_and_records_freshness(
     ]
     assert records[1]["timing"]["detector_ms"] is None
     assert records[1]["inference"]["result_age_ms"] == 100.0
+    assert summary["capture"]["mode"] == "sequential"
+
+
+def test_app_enables_latest_buffer_only_for_camera(
+    tmp_path: Path, monkeypatch
+) -> None:
+    detector = _FakeDetector()
+    source = _FakeSource(kind="camera")
+    injected_delays: list[float] = []
+    monkeypatch.setattr(app_module, "MediaSource", lambda _: source)
+    monkeypatch.setattr(app_module, "sleep", injected_delays.append)
+    config = AppConfig(
+        pipeline=PipelineConfig(
+            live_capture_mode="latest", simulated_detector_delay_ms=100.0
+        ),
+        output=OutputConfig(
+            directory=str(tmp_path), save_annotated=False, save_jsonl=False
+        ),
+    )
+
+    _, summary = app_module.run_detection(
+        config,
+        "0",
+        detector_factory=lambda _: detector,
+    )
+
+    assert source.latest_only is True
+    assert summary["capture"]["mode"] == "latest"
+    assert injected_delays == [0.1, 0.1, 0.1, 0.1]

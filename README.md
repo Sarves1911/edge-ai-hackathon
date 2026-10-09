@@ -20,6 +20,10 @@ Current checkpoint: the unit/contract suite passes, a real image completes end t
 and the first static ONNX export matches all six native detections with minimum box IoU
 `0.999998`. See `VALIDATION.md` for the exact scope and caveat.
 
+The adaptive path now separates cheap motion measurement from inference policy. It can
+run YOLO on startup, motion events, an active cadence, and an idle safety poll while
+explicitly marking cached detections and their age.
+
 ## Set up
 
 Install [`uv`](https://docs.astral.sh/uv/) if needed, then from this directory:
@@ -51,6 +55,46 @@ Quick CPU smoke test on only 20 frames:
 ```bash
 uv run edge-detect run --source path/to/clip.mp4 --device cpu --max-frames 20
 ```
+
+Adaptive recorded-video replay remains sequential and deterministic:
+
+```bash
+uv run --extra export edge-detect run \
+  --source recordings/webcam_raw.mp4 \
+  --config config/adaptive.yaml \
+  --no-annotated
+```
+
+For a live camera, the same config activates a one-slot latest-frame buffer. Capture
+continues while inference is busy, and an unread frame is replaced by the newest frame
+instead of building latency:
+
+```bash
+uv run --extra export edge-detect run \
+  --source 0 \
+  --config config/adaptive.yaml
+```
+
+The summary reports captured, delivered, and replaced frames plus capture-to-result
+p50/p95 latency. Use `--live-capture-mode sequential` for a controlled live-camera
+comparison.
+
+To demonstrate overload behavior before the board arrives, inject detector delay while
+running the live camera. This option is for measurement only and defaults to zero:
+
+```bash
+uv run --extra export edge-detect run \
+  --source 0 \
+  --config config/adaptive.yaml \
+  --mode always \
+  --simulate-detector-delay-ms 100 \
+  --max-frames 100 \
+  --no-annotated
+```
+
+Repeat with `100`, `200`, `300`, and `500` ms in both `sequential` and `latest`
+capture modes. Compare replaced frames and capture-to-result p50/p95 rather than only
+throughput.
 
 Use only selected COCO class IDs without changing code:
 
@@ -97,9 +141,7 @@ floor, or confidence changes beyond the allowed tolerance.
 
 - A tracker, line crossing, room occupancy, or trajectory prediction.
 - Custom training/fine-tuning before the target objects and failure cases are known.
-- An adaptive scheduler before fixed-rate inference is benchmarked.
 - TensorRT, because the current target is the Qualcomm/ARM UNO Q rather than NVIDIA.
 
-The next gate is simple: run this on one representative video, inspect the boxes, and
-save its output as our golden reference. Then implement and validate the ONNX runtime
-path.
+The next gate is a live-camera delay sweep comparing sequential capture against the
+one-slot latest-frame buffer, followed by the same test on the target board.

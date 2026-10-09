@@ -15,6 +15,8 @@ def test_loads_default_config() -> None:
     assert config.motion.height == 120
     assert config.scheduler.mode == "always"
     assert config.scheduler.idle_poll_ms == 2000.0
+    assert config.pipeline.live_capture_mode == "sequential"
+    assert config.pipeline.simulated_detector_delay_ms == 0.0
     assert config.output.save_jsonl is True
 
 
@@ -23,6 +25,7 @@ def test_loads_adaptive_config() -> None:
     assert config.motion.enabled is True
     assert config.scheduler.mode == "adaptive"
     assert config.scheduler.active_interval_ms == 100.0
+    assert config.pipeline.live_capture_mode == "latest"
 
 
 def test_rejects_unknown_key(tmp_path: Path) -> None:
@@ -42,6 +45,8 @@ def test_applies_cli_overrides() -> None:
         output_directory="runs/test",
         motion_enabled=True,
         scheduler_mode="adaptive",
+        live_capture_mode="latest",
+        simulated_detector_delay_ms=100.0,
     )
     assert changed.model.confidence == 0.4
     assert changed.model.classes == (0, 2)
@@ -49,6 +54,8 @@ def test_applies_cli_overrides() -> None:
     assert changed.output.directory == "runs/test"
     assert changed.motion.enabled is True
     assert changed.scheduler.mode == "adaptive"
+    assert changed.pipeline.live_capture_mode == "latest"
+    assert changed.pipeline.simulated_detector_delay_ms == 100.0
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.1])

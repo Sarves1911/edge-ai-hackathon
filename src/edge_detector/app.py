@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any, Callable
 
 import yaml
@@ -59,6 +59,7 @@ def run_detection(
     last_inference_timestamp_ms: float | None = None
 
     sink: RunSink | None = None
+    capture_summary: dict[str, Any] | None = None
     run_started = perf_counter()
     try:
         with MediaSource(source_name) as source:
@@ -70,7 +71,11 @@ def run_detection(
                 save_jsonl=config.output.save_jsonl,
                 line_thickness=config.output.line_thickness,
             )
-            for packet in source.frames():
+            latest_only = (
+                source.kind == "camera"
+                and config.pipeline.live_capture_mode == "latest"
+            )
+            for packet in source.frames(latest_only=latest_only):
                 frame_started = perf_counter()
                 motion = (
                     None
@@ -79,6 +84,8 @@ def run_detection(
                 )
                 decision = scheduler.decide(packet.timestamp_ms, motion)
                 if decision.run_inference:
+                    if config.pipeline.simulated_detector_delay_ms > 0:
+                        sleep(config.pipeline.simulated_detector_delay_ms / 1_000.0)
                     detections, detector_ms = detector.detect(packet.image)
                     last_detections = detections
                     last_inference_timestamp_ms = packet.timestamp_ms
@@ -95,6 +102,15 @@ def run_detection(
                     not decision.run_inference
                     and last_inference_timestamp_ms is not None
                 )
+                capture_to_result_ms = (
+                    None
+                    if packet.captured_at_monotonic_ms is None
+                    else max(
+                        0.0,
+                        perf_counter() * 1_000.0
+                        - packet.captured_at_monotonic_ms,
+                    )
+                )
                 height, width = packet.image.shape[:2]
                 result = FrameResult(
                     frame_index=packet.index,
@@ -110,6 +126,7 @@ def run_detection(
                         result_age_ms=result_age_ms,
                         reused_detections=reused_detections,
                     ),
+                    capture_to_result_ms=capture_to_result_ms,
                 )
                 sink.write(packet, result)
                 frame_ms = (perf_counter() - frame_started) * 1_000.0
@@ -125,12 +142,14 @@ def run_detection(
                     inference_reason=decision.reason,
                     result_age_ms=result_age_ms,
                     reused_detections=reused_detections,
+                    capture_to_result_ms=capture_to_result_ms,
                 )
                 if (
                     config.pipeline.max_frames is not None
                     and len(metrics.frame_ms) >= config.pipeline.max_frames
                 ):
                     break
+        capture_summary = source.capture_summary()
     finally:
         if sink is not None:
             sink.close()
@@ -138,6 +157,7 @@ def run_detection(
     if not metrics.frame_ms:
         raise RuntimeError("The source produced no frames")
     summary = metrics.summary(elapsed_s=perf_counter() - run_started)
+    summary["capture"] = capture_summary
     summary["source"] = source_name
     summary["run_directory"] = str(run_directory)
     summary["annotated_output"] = (
