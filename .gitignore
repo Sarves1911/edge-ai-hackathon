@@ -1,3 +1,5 @@
+.vscode/
+
 .venv/
 __pycache__/
 *.py[cod]
@@ -17,3 +19,6 @@ recordings/
 *.mkv
 
 runs/
+
+runtime/build/
+runtime/.cache/
