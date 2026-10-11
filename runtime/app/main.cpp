@@ -1,20 +1,35 @@
+#include <cassert>
 #include <iostream>
-#include <chrono>
-#include <unistd.h>
+#include "../include/edge_ai/capture/frame_source.hpp"
+
+void printFrameInfo(FrameSource& src){
+    size_t idx = 0;
+    std::vector<uint64_t> expected_timestamps = {0, 100000000, 250000000, 300000000};
+    while(true)
+    {
+        auto val = src.nextFrame();
+        if(val.has_value()){
+            assert(val->frame_id == idx);
+            assert(val->timestamp_ns == expected_timestamps[idx]);
+            std::cout << val->frame_id << " " << val->timestamp_ns << std::endl;
+            idx++;
+        }
+        else{
+            std::cout << "END" << std::endl;
+            break;
+        }
+    }
+}
 
 int main(){
-
-    for(int i=0; i<10; i++)
-    {
-    auto start = std::chrono::steady_clock::now();
-    sleep(2);
-    auto end = std::chrono::steady_clock::now();
-
-    auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start);
-    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end-start);
+    ReplaySource src(ReplayMode::REALTIME);
     
-    std::cout <<  duration_ns.count() << std::endl;
-    std::cout <<  duration_ms.count() << std::endl;
-    }
+    src.addFrame({1, 2,3,4}, 0);
+    src.addFrame({5, 6,7,8}, 100000000);
+    src.addFrame({9, 10,11,12}, 250000000);
+    src.addFrame({13, 14,15,16}, 300000000);
+
+    printFrameInfo(src);
+
     return 0;
 }

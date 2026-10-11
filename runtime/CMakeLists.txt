@@ -7,15 +7,29 @@ project(
     LANGUAGES CXX
 )
 
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+    FFMPEG
+    REQUIRED
+    IMPORTED_TARGET
+    libavformat
+    libavcodec
+    libavutil
+    libswscale
+)
 
 include(GNUInstallDirs)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(src)
-add_subdirectory(tests)
 
 include(CTest)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 install(
     DIRECTORY "${PROJECT_SOURCE_DIR}/runtime/include/"
