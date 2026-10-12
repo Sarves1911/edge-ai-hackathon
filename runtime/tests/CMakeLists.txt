@@ -1,98 +1,44 @@
-add_executable(
-    frame_test
-    frame_test.cpp
-)
-
-target_link_libraries(
-    frame_test
-    PRIVATE
-        edge_ai::core
-)
-
-add_test(
-    NAME frame_test
-    COMMAND frame_test
-)
-
-
-add_executable(
-    time_test
-    time_test.cpp
-)
-
-target_link_libraries(
-    time_test
-    PRIVATE
-        edge_ai::core
-)
-
-add_test(
-    NAME time_test
-    COMMAND time_test
-)
-
-
-add_executable(
-    frame_source_test
-    frame_source_test.cpp
-)
-
-target_link_libraries(
-    frame_source_test
-    PRIVATE
-        edge_ai::core
-)
-
-add_test(
-    NAME frame_source_test
-    COMMAND frame_source_test
-)
-
-
-add_executable(
-    replay_source_test
-    replay_source_test.cpp
-)
-
-target_link_libraries(
-    replay_source_test
-    PRIVATE
-        edge_ai::core
-        edge_ai::capture
-)
-
-add_executable(
-    replay_realtime_test
-    replay_realtime_test.cpp
-)
-
-target_link_libraries(
-    replay_realtime_test
-    PRIVATE
-        edge_ai::core
-        edge_ai::capture
-)
-
 set(TEST_VIDEO
     ${CMAKE_CURRENT_SOURCE_DIR}/data/test.mov
 )
 
-if(EXISTS ${TEST_VIDEO})
-    add_test(
-        NAME replay_source_test
-        COMMAND replay_source_test ${TEST_VIDEO}
-    )
-else()
-    message(
-        STATUS
-        "tests/data/test.mov not found; replay_source_test will not be registered with CTest"
-    )
-endif()
+# edge_ai_add_test(<name> DEPS <libs...> [VIDEO])
+# VIDEO tests receive the recorded clip as argv[1] and are only registered when it exists.
+function(edge_ai_add_test name)
+    cmake_parse_arguments(ARG "VIDEO" "" "DEPS" ${ARGN})
 
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE ${ARG_DEPS})
 
-if(EXISTS ${TEST_VIDEO})
-    add_test(
-        NAME replay_realtime_test
-        COMMAND replay_realtime_test ${TEST_VIDEO}
-    )
+    if(ARG_VIDEO)
+        if(EXISTS ${TEST_VIDEO})
+            add_test(NAME ${name} COMMAND ${name} ${TEST_VIDEO})
+        else()
+            message(STATUS "tests/data/test.mov not found; ${name} will not be registered with CTest")
+        endif()
+    else()
+        add_test(NAME ${name} COMMAND ${name})
+    endif()
+endfunction()
+
+edge_ai_add_test(frame_test DEPS edge_ai::core)
+edge_ai_add_test(time_test DEPS edge_ai::core)
+edge_ai_add_test(frame_source_test DEPS edge_ai::core edge_ai::detector)
+edge_ai_add_test(replay_source_test DEPS edge_ai::capture VIDEO)
+edge_ai_add_test(replay_realtime_test DEPS edge_ai::capture VIDEO)
+edge_ai_add_test(preprocess_test DEPS edge_ai::preprocess edge_ai::detector)
+edge_ai_add_test(postprocess_test DEPS edge_ai::detector)
+edge_ai_add_test(detector_interface_test DEPS edge_ai::detector)
+edge_ai_add_test(detector_worker_test DEPS edge_ai::detector)
+edge_ai_add_test(motion_gate_test DEPS edge_ai::motion)
+edge_ai_add_test(tracker_test DEPS edge_ai::tracker)
+edge_ai_add_test(timestamp_correction_test DEPS edge_ai::tracker)
+edge_ai_add_test(scheduler_test DEPS edge_ai::scheduler)
+edge_ai_add_test(config_test DEPS edge_ai::config)
+target_compile_definitions(config_test PRIVATE EDGE_AI_CONFIG_DIR="${PROJECT_SOURCE_DIR}/config")
+edge_ai_add_test(pipeline_integration_test DEPS edge_ai::pipeline edge_ai::capture VIDEO)
+
+if(EDGE_AI_HAVE_V4L2)
+    edge_ai_add_test(v4l2_source_test DEPS edge_ai::capture)
+    set_tests_properties(v4l2_source_test PROPERTIES SKIP_RETURN_CODE 77)
 endif()

@@ -17,6 +17,11 @@ struct AVFrame;
 struct AVStream;
 struct SwsContext;
 
+enum class ReplayMode{
+    REALTIME,
+    UNLIMITED
+};
+
 class ReplaySource : public FrameSource {
 public:
     explicit ReplaySource(

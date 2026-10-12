@@ -1,0 +1,67 @@
+{
+  "model": {
+    "path": "models/yolov8n.onnx",
+    "confidence": 0.25,
+    "iou": 0.45,
+    "class_id": 0,
+    "threads": 0,
+    "input_width": 320,
+    "input_height": 256
+  },
+  "motion": {
+    "width": 160,
+    "height": 120,
+    "pixel_threshold": 25,
+    "minimum_changed_area": 192,
+    "cooldown_ms": 250,
+    "warmup_frames": 3,
+    "box_margin": 0.25
+  },
+  "tracker": {
+    "match_iou": 0.3,
+    "match_distance": 0.5,
+    "young_hits": 3,
+    "still_motion_pixels": 2,
+    "min_hits": 2,
+    "confirm_score": 0.6,
+    "max_misses": 3,
+    "max_track_age_ms": 2000,
+    "position_gain": 0.7,
+    "velocity_gain": 0.3,
+    "size_gain": 0.5,
+    "abrupt_velocity_change": 1.0,
+    "history_ms": 1000
+  },
+  "scheduler": {
+    "mode": "adaptive",
+    "startup_frames": 3,
+    "fixed_interval_ms": 500,
+    "idle_poll_ms": 2000,
+    "active_hold_ms": 1500,
+    "max_semantic_age_ms": 1000,
+    "min_semantic_interval_ms": 200,
+    "unexplained_motion_fraction": 0.35
+  },
+  "pipeline": {
+    "realtime": false,
+    "async": true,
+    "busy_policy": "latest",
+    "detector": "onnx",
+    "simulated_delay_ms": 0,
+    "max_frames": 0
+  },
+  "camera": {
+    "width": 640,
+    "height": 480,
+    "fps": 30,
+    "buffers": 4,
+    "poll_timeout_ms": 1000
+  },
+  "output": {
+    "directory": "runs/cpp",
+    "save_frames_csv": true,
+    "save_jsonl": true,
+    "overlay": true,
+    "overlay_interval_ms": 1000
+  }
+}
