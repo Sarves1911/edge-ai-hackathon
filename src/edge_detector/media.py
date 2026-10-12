@@ -49,7 +49,9 @@ class MediaSource:
     def __enter__(self) -> "MediaSource":
         cv2 = _cv2()
         self._latest_stop.clear()
+
         source_path = Path(self.source)
+
         if source_path.suffix.lower() in IMAGE_SUFFIXES:
             self.kind = "image"
             self._image = cv2.imread(str(source_path))
@@ -58,18 +60,31 @@ class MediaSource:
             self.fps = 1.0
             return self
 
-        capture_source: str | int = self.source
-        if self.source.isdecimal() and not source_path.exists():
-            capture_source = int(self.source)
+        is_camera_index = self.source.isdecimal() and not source_path.exists()
+        is_v4l2_camera = self.source.startswith("/dev/video")
+
+        if is_camera_index:
+            capture_source: str | int = int(self.source)
             self.kind = "camera"
+        elif is_v4l2_camera:
+            capture_source = self.source
+            self.kind = "camera"
+        else:
+            capture_source = self.source
+            self.kind = "video"
+
         self._capture = cv2.VideoCapture(capture_source)
+
         if not self._capture.isOpened():
-            raise RuntimeError(f"Could not open video/camera source: {self.source}")
+            raise RuntimeError(
+                f"Could not open video/camera source: {self.source}"
+            )
+
         measured_fps = float(self._capture.get(cv2.CAP_PROP_FPS))
         self.fps = measured_fps if measured_fps > 0.0 else 10.0
+
         self._opened_at_monotonic_ms = perf_counter() * 1_000.0
         return self
-
     def _make_packet(self, index: int, frame: Any) -> FramePacket:
         captured_at_ms = perf_counter() * 1_000.0
         if self.kind == "camera":
