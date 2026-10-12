@@ -1,0 +1,6 @@
+{
+  "model": {"path": "models/yolov8n-int8.onnx"},
+  "scheduler": {"mode": "adaptive"},
+  "pipeline": {"async": true, "busy_policy": "latest"},
+  "output": {"directory": "runs/ladder/r6", "overlay": false}
+}

@@ -1,0 +1,6 @@
+{
+  "model": {"path": "models/yolov8n-int8.onnx"},
+  "scheduler": {"mode": "motion_gated", "fixed_interval_ms": 500, "idle_poll_ms": 2000, "active_hold_ms": 1500},
+  "pipeline": {"async": true, "busy_policy": "latest"},
+  "output": {"directory": "runs/ladder/r5", "overlay": false}
+}

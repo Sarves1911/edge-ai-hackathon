@@ -1,0 +1,6 @@
+{
+  "model": {"path": "models/yolov8n-int8.onnx"},
+  "scheduler": {"mode": "fixed_interval", "fixed_interval_ms": 500},
+  "pipeline": {"async": true, "busy_policy": "latest"},
+  "output": {"directory": "runs/ladder/r4", "overlay": false}
+}
