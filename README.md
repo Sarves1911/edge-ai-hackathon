@@ -20,9 +20,11 @@ Current checkpoint: the unit/contract suite passes, a real image completes end t
 and the first static ONNX export matches all six native detections with minimum box IoU
 `0.999998`. See `VALIDATION.md` for the exact scope and caveat.
 
-The adaptive path now separates cheap motion measurement from inference policy. It can
-run YOLO on startup, motion events, an active cadence, and an idle safety poll while
-explicitly marking cached detections and their age.
+The adaptive path separates cheap motion measurement, sparse optical-flow tracking,
+inference policy, and YOLO execution. A single detector worker accepts at most one
+replaceable pending frame, so a slow detector cannot create a FIFO backlog. YOLO still
+owns person identification; the tracker only moves YOLO-created boxes until the next
+detector correction.
 
 ## Set up
 
@@ -65,9 +67,10 @@ uv run --extra export edge-detect run \
   --no-annotated
 ```
 
-For a live camera, the same config activates a one-slot latest-frame buffer. Capture
-continues while inference is busy, and an unread frame is replaced by the newest frame
-instead of building latency:
+For a live camera, the same config activates both the one-slot latest-frame capture
+buffer and asynchronous YOLO execution. Capture, motion, tracking, and scheduling
+continue while the detector worker is busy. Both capture and detector overload replace
+unread stale work with the newest frame instead of building latency:
 
 ```bash
 uv run --extra export edge-detect run \
@@ -75,9 +78,11 @@ uv run --extra export edge-detect run \
   --config config/adaptive.yaml
 ```
 
-The summary reports captured, delivered, and replaced frames plus capture-to-result
-p50/p95 latency. Use `--live-capture-mode sequential` for a controlled live-camera
-comparison.
+The summary reports captured/replaced frames, detector jobs submitted/replaced,
+tracker failures/refreshes, and capture-to-result p50/p95 latency. Use
+`--live-capture-mode sequential` for a controlled live-camera comparison. Recorded
+replay also remains deterministic: inference runs on the worker thread, but replay waits
+for each scheduled result.
 
 To demonstrate overload behavior before the board arrives, inject detector delay while
 running the live camera. This option is for measurement only and defaults to zero:
@@ -139,9 +144,10 @@ floor, or confidence changes beyond the allowed tolerance.
 
 ## What we are intentionally not building yet
 
-- A tracker, line crossing, room occupancy, or trajectory prediction.
+- DeepSORT, ByteTrack, ReID, line crossing, room occupancy, or trajectory prediction.
+- Historical frame replay to re-run tracking across every frame missed during inference.
 - Custom training/fine-tuning before the target objects and failure cases are known.
 - TensorRT, because the current target is the Qualcomm/ARM UNO Q rather than NVIDIA.
 
-The next gate is a live-camera delay sweep comparing sequential capture against the
-one-slot latest-frame buffer, followed by the same test on the target board.
+The next gate is the live-camera 100/200/300/500 ms delay sweep with the async worker and
+tracker, followed by the same test on the target board.

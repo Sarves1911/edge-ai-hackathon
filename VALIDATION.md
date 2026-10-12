@@ -70,3 +70,17 @@ processing plus up to one camera-frame interval of buffer wait.
 The live scene remained static. A large startup motion score was suppressed by the
 three-frame warm-up; no active frames or motion events were emitted after startup.
 
+## Async worker and tracker unit checkpoint · Oct 12, 2026
+
+- Full Python suite: **44 passed**.
+- Detector execution is verified on a dedicated worker thread.
+- Overload is verified to keep one pending job and process the newest replacement.
+- Worker shutdown and post-stop submission behavior are covered.
+- Sparse Lucas-Kanade initialization, box propagation, and point-loss failure are
+  covered.
+- Tracker failure is verified to force a YOLO refresh through the scheduler.
+- Injected worker-delay cases at **100, 200, 300, and 500 ms** pass without blocking
+  job submission.
+
+This is a deterministic unit/integration checkpoint, not a hardware performance claim.
+The live delay sweep and UNO Q measurements remain to be run on the actual devices.

@@ -212,7 +212,7 @@ def draw_detections(
         cv2.rectangle(annotated, start, end, color, thickness)
         label = f"{detection.class_name} {detection.confidence:.2f}"
         if cached_age_ms is not None:
-            label += f" cached {cached_age_ms:.0f}ms"
+            label += f" tracked {cached_age_ms:.0f}ms"
         text_y = max(18, start[1] - 7)
         cv2.putText(
             annotated,

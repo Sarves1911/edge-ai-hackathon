@@ -48,6 +48,26 @@ scheduler:
   # Always infer on initial frames before adaptive gating begins.
   startup_frames: 3
 
+tracker:
+  # YOLO owns semantic identification. Sparse optical flow only propagates
+  # detector-created boxes between YOLO results.
+  enabled: true
+  max_corners_per_box: 40
+  min_points: 4
+  quality_level: 0.01
+  min_distance: 5
+  block_size: 7
+  window_size: 21
+  max_level: 3
+  criteria_iterations: 20
+  criteria_epsilon: 0.03
+  max_point_residual: 12
+
+  # Async results beyond either bound are dropped instead of being applied to
+  # a much newer live frame. A fresh detector request is then scheduled.
+  max_result_age_ms: 1000
+  max_result_frame_gap: 30
+
 pipeline:
   # Sequential mode is deterministic for images and recorded videos.
   # "latest" activates a one-slot drop-oldest buffer for live cameras only.

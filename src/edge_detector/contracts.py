@@ -47,14 +47,34 @@ class InferenceStatus:
     reason: str = "always"
     result_age_ms: float | None = 0.0
     reused_detections: bool = False
+    requested: bool | None = None
+    request_accepted: bool | None = None
+    result_frame_index: int | None = None
+    result_timestamp_ms: float | None = None
+    tracker_used: bool | None = None
+    tracker_failed: bool | None = None
+    stale_result_dropped: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        record: dict[str, Any] = {
             "ran": self.ran,
             "reason": self.reason,
             "result_age_ms": self.result_age_ms,
             "reused_detections": self.reused_detections,
         }
+        optional = {
+            "requested": self.requested,
+            "request_accepted": self.request_accepted,
+            "result_frame_index": self.result_frame_index,
+            "result_timestamp_ms": self.result_timestamp_ms,
+            "tracker_used": self.tracker_used,
+            "tracker_failed": self.tracker_failed,
+            "stale_result_dropped": self.stale_result_dropped,
+        }
+        record.update(
+            {key: value for key, value in optional.items() if value is not None}
+        )
+        return record
 
 
 @dataclass(frozen=True)
@@ -68,6 +88,8 @@ class FrameResult:
     motion: MotionResult | None = None
     inference: InferenceStatus = InferenceStatus()
     capture_to_result_ms: float | None = None
+    detector_queue_ms: float | None = None
+    tracker_ms: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         record = {
@@ -76,6 +98,8 @@ class FrameResult:
             "frame": {"width": self.width, "height": self.height},
             "timing": {
                 "detector_ms": self.detector_ms,
+                "detector_queue_ms": self.detector_queue_ms,
+                "tracker_ms": self.tracker_ms,
                 "capture_to_result_ms": self.capture_to_result_ms,
             },
             "inference": self.inference.to_dict(),

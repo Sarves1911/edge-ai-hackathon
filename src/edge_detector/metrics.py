@@ -35,6 +35,7 @@ class RunMetrics:
     reused_detection_frames: int = 0
     result_age_ms: list[float] = field(default_factory=list)
     capture_to_result_ms: list[float] = field(default_factory=list)
+    tracker_ms: list[float] = field(default_factory=list)
     inference_reasons: dict[str, int] = field(default_factory=dict)
     total_detections: int = 0
 
@@ -53,6 +54,7 @@ class RunMetrics:
         result_age_ms: float | None = 0.0,
         reused_detections: bool = False,
         capture_to_result_ms: float | None = None,
+        tracker_ms: float | None = None,
     ) -> None:
         if detector_ms is not None:
             self.detector_ms.append(detector_ms)
@@ -68,6 +70,8 @@ class RunMetrics:
             self.result_age_ms.append(result_age_ms)
         if capture_to_result_ms is not None:
             self.capture_to_result_ms.append(capture_to_result_ms)
+        if tracker_ms is not None:
+            self.tracker_ms.append(tracker_ms)
         self.inference_reasons[inference_reason] = (
             self.inference_reasons.get(inference_reason, 0) + 1
         )
@@ -79,6 +83,15 @@ class RunMetrics:
             self.motion_active_frames += 1
         if motion_event:
             self.motion_events += 1
+
+    def finalize_detector_observations(
+        self, detector_ms: list[float], total_detections: int
+    ) -> None:
+        """Replace per-frame guesses with the worker's completed-call history."""
+        self.detector_ms = list(detector_ms)
+        self.inference_calls = len(detector_ms)
+        self.skipped_frames = max(0, len(self.frame_ms) - self.inference_calls)
+        self.total_detections = total_detections
 
     def summary(self, elapsed_s: float | None = None) -> dict[str, Any]:
         elapsed = perf_counter() - self.started_at if elapsed_s is None else elapsed_s
@@ -146,6 +159,14 @@ class RunMetrics:
                 },
             },
         }
+        if self.tracker_ms:
+            summary["tracker"] = {
+                "processing_ms": {
+                    "p50": percentile(self.tracker_ms, 50),
+                    "p95": percentile(self.tracker_ms, 95),
+                    "mean": sum(self.tracker_ms) / len(self.tracker_ms),
+                }
+            }
         if self.motion_ms:
             summary["motion_gate"] = {
                 "active_frames": self.motion_active_frames,

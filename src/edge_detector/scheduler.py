@@ -35,6 +35,12 @@ class InferenceScheduler:
         self._last_inference_ms = timestamp_ms
         return SchedulerDecision(run_inference=True, reason=reason)
 
+    def force(self, timestamp_ms: float, reason: str) -> SchedulerDecision:
+        """Record an out-of-band detector refresh, such as tracker failure."""
+        if timestamp_ms < 0:
+            raise ValueError("timestamp_ms cannot be negative")
+        return self._record_inference(timestamp_ms, reason)
+
     def _interval_elapsed(self, timestamp_ms: float, interval_ms: float) -> bool:
         return (
             self._last_inference_ms is None

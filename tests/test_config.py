@@ -17,6 +17,8 @@ def test_loads_default_config() -> None:
     assert config.scheduler.idle_poll_ms == 2000.0
     assert config.pipeline.live_capture_mode == "sequential"
     assert config.pipeline.simulated_detector_delay_ms == 0.0
+    assert config.tracker.enabled is True
+    assert config.tracker.max_result_frame_gap == 30
     assert config.output.save_jsonl is True
 
 
@@ -25,6 +27,7 @@ def test_loads_adaptive_config() -> None:
     assert config.motion.enabled is True
     assert config.scheduler.mode == "adaptive"
     assert config.scheduler.active_interval_ms == 100.0
+    assert config.tracker.min_points == 4
     assert config.pipeline.live_capture_mode == "latest"
 
 

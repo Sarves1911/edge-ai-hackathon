@@ -21,6 +21,21 @@ scheduler:
   idle_poll_ms: 2000
   startup_frames: 3
 
+tracker:
+  enabled: true
+  max_corners_per_box: 40
+  min_points: 4
+  quality_level: 0.01
+  min_distance: 5
+  block_size: 7
+  window_size: 21
+  max_level: 3
+  criteria_iterations: 20
+  criteria_epsilon: 0.03
+  max_point_residual: 12
+  max_result_age_ms: 1000
+  max_result_frame_gap: 30
+
 pipeline:
   live_capture_mode: latest
   simulated_detector_delay_ms: 0

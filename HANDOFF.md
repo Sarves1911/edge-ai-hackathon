@@ -8,11 +8,14 @@
 - Motion signal with startup suppression and cooldown.
 - Adaptive scheduler with startup, motion-event, active-cadence, hold, and idle-poll
   policies.
-- Explicit cached-detection age and inference-reason records.
+- Explicit detector-result age, tracked-box state, and inference-reason records.
 - One-slot latest-frame live-camera buffer with stale-frame replacement.
+- Sparse Lucas-Kanade box tracking between YOLO results.
+- Single async YOLO worker with one latest-wins pending slot and no FIFO backlog.
+- Frame/timestamp-tagged jobs and results with stale-result rejection.
 - Capture-to-result latency, replacement, duty-cycle, motion-score, cold-start, and
   steady-state metrics.
-- Unit/integration suite: **32 passing tests**.
+- Unit/integration suite: **44 passing tests**.
 
 See `VALIDATION.md` for the frozen parity, adaptive-replay, and live-backpressure
 measurements.
@@ -69,7 +72,8 @@ five scenarios. Then freeze one configuration that satisfies all of the followin
 - lighting changes and camera shake do not create sustained false activity.
 
 Do not compare always-on and adaptive JSONL files with the backend parity command.
-Adaptive mode intentionally skips inference and reuses explicitly marked cached results.
+Adaptive mode intentionally skips inference and propagates explicitly marked tracked
+results between YOLO refreshes.
 
 ## After motion validation
 

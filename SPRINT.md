@@ -7,8 +7,10 @@ image/video/webcam -> detector -> boxes in original-frame coordinates
                     -> JSONL + optional overlay + benchmark summary
 ```
 
-No tracker, line crossing, occupancy logic, or domain fine-tuning is allowed before the
-problem statement is chosen.
+No heavy multi-object/ReID tracker, line crossing, occupancy logic, or domain
+fine-tuning is allowed before the problem statement is chosen. A lightweight
+optical-flow tracker is permitted only to propagate YOLO person boxes between detector
+refreshes.
 
 ## Oct 6 · R0 reference
 
@@ -71,7 +73,7 @@ Exit: camera capture stays responsive even when inference is slower than the cam
 | R1 | Same Python reference at 320 x 256 |
 | R2 | Deployment runtime, FP32 at 320 x 256 |
 | R3 | INT8 |
-| R4 | Asynchronous latest-frame inference |
+| R4 | Asynchronous latest-frame inference + optical-flow box propagation |
 | R5 | Board thread/system tuning |
 | R6 | One problem-specific event module after the problem is chosen |
 

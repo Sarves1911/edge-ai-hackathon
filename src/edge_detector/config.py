@@ -37,6 +37,23 @@ class SchedulerConfig:
 
 
 @dataclass(frozen=True)
+class TrackerConfig:
+    enabled: bool = True
+    max_corners_per_box: int = 40
+    min_points: int = 4
+    quality_level: float = 0.01
+    min_distance: float = 5.0
+    block_size: int = 7
+    window_size: int = 21
+    max_level: int = 3
+    criteria_iterations: int = 20
+    criteria_epsilon: float = 0.03
+    max_point_residual: float = 12.0
+    max_result_age_ms: float = 1_000.0
+    max_result_frame_gap: int = 30
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     live_capture_mode: str = "sequential"
     simulated_detector_delay_ms: float = 0.0
@@ -56,6 +73,7 @@ class AppConfig:
     model: ModelConfig = ModelConfig()
     motion: MotionConfig = MotionConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
+    tracker: TrackerConfig = TrackerConfig()
     pipeline: PipelineConfig = PipelineConfig()
     output: OutputConfig = OutputConfig()
 
@@ -118,6 +136,32 @@ def _validate(config: AppConfig) -> AppConfig:
         raise ValueError("scheduler.startup_frames must be at least 1")
     if config.scheduler.mode == "adaptive" and not config.motion.enabled:
         raise ValueError("adaptive scheduler mode requires motion.enabled=true")
+    if config.tracker.max_corners_per_box < 1:
+        raise ValueError("tracker.max_corners_per_box must be positive")
+    if not 1 <= config.tracker.min_points <= config.tracker.max_corners_per_box:
+        raise ValueError(
+            "tracker.min_points must be between 1 and max_corners_per_box"
+        )
+    if not 0.0 < config.tracker.quality_level <= 1.0:
+        raise ValueError("tracker.quality_level must be between 0 and 1")
+    if config.tracker.min_distance < 0:
+        raise ValueError("tracker.min_distance cannot be negative")
+    if config.tracker.block_size < 2:
+        raise ValueError("tracker.block_size must be at least 2")
+    if config.tracker.window_size < 2:
+        raise ValueError("tracker.window_size must be at least 2")
+    if config.tracker.max_level < 0:
+        raise ValueError("tracker.max_level cannot be negative")
+    if config.tracker.criteria_iterations < 1:
+        raise ValueError("tracker.criteria_iterations must be positive")
+    if config.tracker.criteria_epsilon <= 0:
+        raise ValueError("tracker.criteria_epsilon must be positive")
+    if config.tracker.max_point_residual <= 0:
+        raise ValueError("tracker.max_point_residual must be positive")
+    if config.tracker.max_result_age_ms < 0:
+        raise ValueError("tracker.max_result_age_ms cannot be negative")
+    if config.tracker.max_result_frame_gap < 0:
+        raise ValueError("tracker.max_result_frame_gap cannot be negative")
     if config.pipeline.live_capture_mode not in {"sequential", "latest"}:
         raise ValueError(
             "pipeline.live_capture_mode must be 'sequential' or 'latest'"
@@ -139,18 +183,22 @@ def load_config(path: str | Path) -> AppConfig:
     if not isinstance(raw, dict):
         raise ValueError("The config root must be a mapping")
     _reject_unknown(
-        raw, {"model", "motion", "scheduler", "pipeline", "output"}, "config root"
+        raw,
+        {"model", "motion", "scheduler", "tracker", "pipeline", "output"},
+        "config root",
     )
 
     model_raw = raw.get("model", {}) or {}
     motion_raw = raw.get("motion", {}) or {}
     scheduler_raw = raw.get("scheduler", {}) or {}
+    tracker_raw = raw.get("tracker", {}) or {}
     pipeline_raw = raw.get("pipeline", {}) or {}
     output_raw = raw.get("output", {}) or {}
     for section_name, section in (
         ("model", model_raw),
         ("motion", motion_raw),
         ("scheduler", scheduler_raw),
+        ("tracker", tracker_raw),
         ("pipeline", pipeline_raw),
         ("output", output_raw),
     ):
@@ -184,6 +232,25 @@ def load_config(path: str | Path) -> AppConfig:
             "startup_frames",
         },
         "scheduler",
+    )
+    _reject_unknown(
+        tracker_raw,
+        {
+            "enabled",
+            "max_corners_per_box",
+            "min_points",
+            "quality_level",
+            "min_distance",
+            "block_size",
+            "window_size",
+            "max_level",
+            "criteria_iterations",
+            "criteria_epsilon",
+            "max_point_residual",
+            "max_result_age_ms",
+            "max_result_frame_gap",
+        },
+        "tracker",
     )
     _reject_unknown(
         pipeline_raw,
@@ -239,6 +306,49 @@ def load_config(path: str | Path) -> AppConfig:
             scheduler_raw.get("startup_frames", SchedulerConfig.startup_frames)
         ),
     )
+    tracker = TrackerConfig(
+        enabled=bool(tracker_raw.get("enabled", TrackerConfig.enabled)),
+        max_corners_per_box=int(
+            tracker_raw.get(
+                "max_corners_per_box", TrackerConfig.max_corners_per_box
+            )
+        ),
+        min_points=int(tracker_raw.get("min_points", TrackerConfig.min_points)),
+        quality_level=float(
+            tracker_raw.get("quality_level", TrackerConfig.quality_level)
+        ),
+        min_distance=float(
+            tracker_raw.get("min_distance", TrackerConfig.min_distance)
+        ),
+        block_size=int(tracker_raw.get("block_size", TrackerConfig.block_size)),
+        window_size=int(
+            tracker_raw.get("window_size", TrackerConfig.window_size)
+        ),
+        max_level=int(tracker_raw.get("max_level", TrackerConfig.max_level)),
+        criteria_iterations=int(
+            tracker_raw.get(
+                "criteria_iterations", TrackerConfig.criteria_iterations
+            )
+        ),
+        criteria_epsilon=float(
+            tracker_raw.get("criteria_epsilon", TrackerConfig.criteria_epsilon)
+        ),
+        max_point_residual=float(
+            tracker_raw.get(
+                "max_point_residual", TrackerConfig.max_point_residual
+            )
+        ),
+        max_result_age_ms=float(
+            tracker_raw.get(
+                "max_result_age_ms", TrackerConfig.max_result_age_ms
+            )
+        ),
+        max_result_frame_gap=int(
+            tracker_raw.get(
+                "max_result_frame_gap", TrackerConfig.max_result_frame_gap
+            )
+        ),
+    )
     pipeline = PipelineConfig(
         live_capture_mode=str(
             pipeline_raw.get(
@@ -272,6 +382,7 @@ def load_config(path: str | Path) -> AppConfig:
             model=model,
             motion=motion,
             scheduler=scheduler,
+            tracker=tracker,
             pipeline=pipeline,
             output=output,
         )
@@ -374,6 +485,7 @@ def apply_overrides(
             model=model,
             motion=motion,
             scheduler=scheduler,
+            tracker=config.tracker,
             pipeline=pipeline,
             output=output,
         )
@@ -404,6 +516,21 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
             "active_hold_ms": config.scheduler.active_hold_ms,
             "idle_poll_ms": config.scheduler.idle_poll_ms,
             "startup_frames": config.scheduler.startup_frames,
+        },
+        "tracker": {
+            "enabled": config.tracker.enabled,
+            "max_corners_per_box": config.tracker.max_corners_per_box,
+            "min_points": config.tracker.min_points,
+            "quality_level": config.tracker.quality_level,
+            "min_distance": config.tracker.min_distance,
+            "block_size": config.tracker.block_size,
+            "window_size": config.tracker.window_size,
+            "max_level": config.tracker.max_level,
+            "criteria_iterations": config.tracker.criteria_iterations,
+            "criteria_epsilon": config.tracker.criteria_epsilon,
+            "max_point_residual": config.tracker.max_point_residual,
+            "max_result_age_ms": config.tracker.max_result_age_ms,
+            "max_result_frame_gap": config.tracker.max_result_frame_gap,
         },
         "pipeline": {
             "live_capture_mode": config.pipeline.live_capture_mode,
