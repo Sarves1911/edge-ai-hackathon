@@ -21,4 +21,5 @@ recordings/
 runs/
 
 runtime/build/
+runtime/build-*/
 runtime/.cache/
