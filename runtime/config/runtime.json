@@ -19,7 +19,7 @@
   },
   "tracker": {
     "match_iou": 0.3,
-    "match_distance": 0.5,
+    "match_distance": 0.8,
     "young_hits": 3,
     "still_motion_pixels": 2,
     "min_hits": 2,
