@@ -73,7 +73,10 @@ int runScripted(SchedulerMode mode, bool async, uint32_t delay_ms, RunResult& ou
             : makeSceneRGB(W, H, 70, static_cast<int>(x), 60, static_cast<int>(x) + 40, 180, 220);
 
         const uint64_t ts = f*kFrame;
-        pipeline.step(makeFrame(image.view, ts, f));
+        const PipelineStatus status = pipeline.step(makeFrame(image.view, ts, f));
+        CHECK(status.detections.size() == status.persons);
+        if(mode == SchedulerMode::ALWAYS) CHECK(status.track_ids.empty());
+        else CHECK(status.track_ids.size() == status.detections.size());
 
         // Real-time pacing so a delayed detector really is late relative to frames.
         if(async && delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(33));

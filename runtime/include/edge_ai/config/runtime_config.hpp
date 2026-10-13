@@ -46,6 +46,8 @@ struct OutputConfig{
     bool save_jsonl = true;
     bool overlay = true;
     uint32_t overlay_interval_ms = 1000;
+    uint32_t viewer_port = 0;          // 0 = disabled
+    uint32_t viewer_fps = 5;
 };
 
 struct RuntimeConfig{

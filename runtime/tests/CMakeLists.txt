@@ -36,6 +36,7 @@ edge_ai_add_test(timestamp_correction_test DEPS edge_ai::tracker)
 edge_ai_add_test(scheduler_test DEPS edge_ai::scheduler)
 edge_ai_add_test(config_test DEPS edge_ai::config)
 target_compile_definitions(config_test PRIVATE EDGE_AI_CONFIG_DIR="${PROJECT_SOURCE_DIR}/config")
+edge_ai_add_test(live_viewer_test DEPS edge_ai::viewer)
 edge_ai_add_test(pipeline_integration_test DEPS edge_ai::pipeline edge_ai::capture VIDEO)
 
 if(EDGE_AI_HAVE_V4L2)

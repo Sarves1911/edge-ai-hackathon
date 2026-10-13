@@ -6,17 +6,23 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-# Generated runs, recordings, and model binaries do not belong in git.
+# Generated runs and arbitrary large artifacts do not belong in git. The exact
+# demo artifacts below are intentionally allowed so a board clone is complete.
 runs/*
 !runs/.gitkeep
 models/*
 !models/.gitkeep
-recordings/
+recordings/*
+!recordings/.gitkeep
 *.pt
 *.onnx
 *.engine
 *.mp4
 *.mkv
+!models/yolov8n.onnx
+!models/yolov8n-int8.onnx
+!models/yolov8n-640.onnx
+!recordings/webcam_raw.mp4
 
 runs/
 

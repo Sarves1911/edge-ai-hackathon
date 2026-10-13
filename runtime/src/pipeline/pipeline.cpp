@@ -1,5 +1,6 @@
 #include <edge_ai/pipeline/pipeline.hpp>
 
+#include <utility>
 #include <vector>
 
 #include <edge_ai/core/time.hpp>
@@ -177,6 +178,8 @@ PipelineStatus Pipeline::step(const Frame& frame){
     status_.frames = profiler_.frames();
     status_.last_result_age_ms = result_age_ms;
     status_.motion_score = motion.score;
+    status_.detections = std::move(boxes);
+    status_.track_ids = std::move(ids);
     return status_;
 }
 
@@ -184,7 +187,7 @@ size_t Pipeline::run(
     FrameSource& source,
     uint64_t max_frames,
     const std::atomic<bool>* stop,
-    const std::function<void(const PipelineStatus&)>& on_frame
+    const std::function<void(const PipelineStatus&, const Frame&)>& on_frame
 ){
     size_t processed = 0;
     while(max_frames == 0 || processed < max_frames){
@@ -195,7 +198,7 @@ size_t Pipeline::run(
 
         const PipelineStatus& s = step(*frame);
         ++processed;
-        if(on_frame) on_frame(s);
+        if(on_frame) on_frame(s, *frame);
     }
     drain();
     return processed;

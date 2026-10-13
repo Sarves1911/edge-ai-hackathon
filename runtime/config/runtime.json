@@ -62,6 +62,8 @@
     "save_frames_csv": true,
     "save_jsonl": true,
     "overlay": true,
-    "overlay_interval_ms": 1000
+    "overlay_interval_ms": 1000,
+    "viewer_port": 8080,
+    "viewer_fps": 5
   }
 }

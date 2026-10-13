@@ -28,7 +28,7 @@ for delay in 0 100 200 300 500; do
     echo "=== delay ${delay} ms"
     "${BIN}" --config "${RUNTIME_DIR}/config/runtime.json" --source "replay:${CLIP}" --realtime \
         --detector simulated --sim-jsonl "${CACHED}" --sim-delay-ms "${delay}" \
-        --no-overlay --output "${OUT}/delay-${delay}" 2>&1 | grep -v swscaler
+        --no-overlay --viewer-port 0 --output "${OUT}/delay-${delay}" 2>&1 | grep -v swscaler
 done
 
 python3 "${RUNTIME_DIR}/bench/summarize.py" "${OUT}" --reference "${CACHED}" | tee "${OUT}/scorecard.md"

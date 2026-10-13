@@ -34,6 +34,8 @@ int main(){
         CHECK(c.scheduler.mode == SchedulerMode::ADAPTIVE);
         CHECK(c.pipeline.async);
         CHECK(c.pipeline.busy_policy == BusyPolicy::LATEST);
+        CHECK(c.output.viewer_port == 0);
+        CHECK(c.output.viewer_fps == 5);
     }
 
     // Overrides.
@@ -45,7 +47,7 @@ int main(){
             "scheduler": {"mode": "fixed_interval", "fixed_interval_ms": 250},
             "pipeline": {"async": false, "busy_policy": "skip", "detector": "simulated", "max_frames": 10},
             "camera": {"width": 320, "height": 240},
-            "output": {"directory": "runs/x", "overlay": false}
+            "output": {"directory": "runs/x", "overlay": false, "viewer_port": 8080, "viewer_fps": 8}
         })");
         CHECK(c.model.path == "m.onnx");
         CHECK_NEAR(c.model.confidence, 0.4f, 1e-6);
@@ -62,12 +64,15 @@ int main(){
         CHECK(c.camera.width == 320);
         CHECK(c.output.directory == "runs/x");
         CHECK(!c.output.overlay);
+        CHECK(c.output.viewer_port == 8080);
+        CHECK(c.output.viewer_fps == 8);
 
         // Round trip through the effective-config dump.
         const RuntimeConfig again = parseConfig(configToJson(c));
         CHECK(again.scheduler.mode == SchedulerMode::FIXED_INTERVAL);
         CHECK(again.motion.pixel_threshold == 40);
         CHECK(again.pipeline.busy_policy == BusyPolicy::SKIP);
+        CHECK(again.output.viewer_port == 8080);
     }
 
     // Invalid values and typos are rejected rather than silently defaulted.
@@ -83,6 +88,10 @@ int main(){
     CHECK(rejects(R"({"pipeline": {"busy_policy": "queue"}})"));
     CHECK(rejects(R"({"pipeline": {"detector": "tensorrt"}})"));
     CHECK(rejects(R"({"camera": {"width": 641}})"));
+    CHECK(rejects(R"({"output": {"viewer_port": 65536}})"));
+    CHECK(rejects(R"({"output": {"viewer_port": -1}})"));
+    CHECK(rejects(R"({"output": {"viewer_fps": 0}})"));
+    CHECK(rejects(R"({"output": {"viewer_fps": 31}})"));
 
     // Shipped configuration files parse.
     for(const char* path : {EDGE_AI_CONFIG_DIR "/runtime.json",

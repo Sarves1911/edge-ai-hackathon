@@ -11,6 +11,7 @@ target_link_libraries(
         edge_ai::detector
         edge_ai::config
         edge_ai::metrics
+        edge_ai::viewer
 )
 
 if(EDGE_AI_HAVE_ONNXRUNTIME)

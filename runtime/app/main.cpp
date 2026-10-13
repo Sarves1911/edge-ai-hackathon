@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -15,6 +16,7 @@
 #include <edge_ai/detector/simulated_detector.hpp>
 #include <edge_ai/metrics/profiler.hpp>
 #include <edge_ai/pipeline/pipeline.hpp>
+#include <edge_ai/viewer/live_viewer.hpp>
 
 #ifdef EDGE_AI_HAVE_ONNXRUNTIME
 #include <edge_ai/detector/onnx_detector.hpp>
@@ -48,12 +50,23 @@ void usage(){
         "  --busy-policy <p>           skip | latest\n"
         "  --realtime                  pace replay at the recorded frame rate\n"
         "  --max-frames <n>            stop after n frames\n"
-        "  --no-overlay                disable the terminal status line\n";
+        "  --no-overlay                disable the terminal status line\n"
+        "  --viewer-port <n>           annotated browser viewer port (0 disables)\n"
+        "  --viewer-fps <n>            browser viewer refresh rate (1-30)\n";
 }
 
 std::string requireValue(int& i, int argc, char** argv){
     if(i + 1 >= argc) throw std::invalid_argument(std::string("missing value for ") + argv[i]);
     return argv[++i];
+}
+
+uint32_t parseUint32(const std::string& value, const char* option){
+    size_t consumed = 0;
+    const unsigned long long parsed = std::stoull(value, &consumed);
+    if(consumed != value.size() || parsed > std::numeric_limits<uint32_t>::max()){
+        throw std::invalid_argument(std::string(option) + " must be an unsigned 32-bit integer");
+    }
+    return static_cast<uint32_t>(parsed);
 }
 
 struct CliOptions{
@@ -82,13 +95,15 @@ CliOptions parseArgs(int argc, char** argv){
         else if(arg == "--model") c.model.path = requireValue(i, argc, argv);
         else if(arg == "--threads") c.model.threads = std::stoi(requireValue(i, argc, argv));
         else if(arg == "--sim-jsonl") c.pipeline.simulated_jsonl = requireValue(i, argc, argv);
-        else if(arg == "--sim-delay-ms") c.pipeline.simulated_delay_ms = static_cast<uint32_t>(std::stoul(requireValue(i, argc, argv)));
+        else if(arg == "--sim-delay-ms") c.pipeline.simulated_delay_ms = parseUint32(requireValue(i, argc, argv), "--sim-delay-ms");
         else if(arg == "--sync") c.pipeline.async = false;
         else if(arg == "--async") c.pipeline.async = true;
         else if(arg == "--busy-policy") c.pipeline.busy_policy = busyPolicyFromString(requireValue(i, argc, argv));
         else if(arg == "--realtime") c.pipeline.realtime = true;
         else if(arg == "--max-frames") c.pipeline.max_frames = std::stoull(requireValue(i, argc, argv));
         else if(arg == "--no-overlay") c.output.overlay = false;
+        else if(arg == "--viewer-port") c.output.viewer_port = parseUint32(requireValue(i, argc, argv), "--viewer-port");
+        else if(arg == "--viewer-fps") c.output.viewer_fps = parseUint32(requireValue(i, argc, argv), "--viewer-fps");
         else if(arg == "-h" || arg == "--help"){ usage(); std::exit(0); }
         else throw std::invalid_argument("unknown argument: " + arg);
     }
@@ -188,18 +203,61 @@ int main(int argc, char** argv){
         Pipeline pipeline(config, *detector, profiler);
         profiler.start();
 
+        std::unique_ptr<LiveViewer> viewer;
+        if(config.output.viewer_port > 0){
+            viewer = std::make_unique<LiveViewer>(
+                static_cast<uint16_t>(config.output.viewer_port), config.output.viewer_fps
+            );
+            std::cerr
+                << "live viewer: http://<board-ip>:" << viewer->port() << '\n'
+                << "SSH fallback: ssh -L " << viewer->port() << ":localhost:" << viewer->port()
+                << " <user>@<board-ip>, then open http://localhost:" << viewer->port() << '\n';
+        }
+
         const uint64_t interval_ns = static_cast<uint64_t>(config.output.overlay_interval_ms)*1'000'000ULL;
         uint64_t last_print_ns = now_monotonic_ns();
         size_t last_print_frames = 0;
+        uint64_t last_frame_ns = 0;
+        double smoothed_fps = 0.0;
 
-        auto on_frame = [&](const PipelineStatus& s){
-            if(!config.output.overlay) return;
+        auto on_frame = [&](const PipelineStatus& s, const Frame& frame){
             const uint64_t now = now_monotonic_ns();
-            if(now - last_print_ns < interval_ns) return;
-            const double fps = (s.frames - last_print_frames) / ((now - last_print_ns)/1e9);
-            printStatus(s, fps);
-            last_print_ns = now;
-            last_print_frames = s.frames;
+            if(last_frame_ns > 0 && now > last_frame_ns){
+                const double instant_fps = 1e9/static_cast<double>(now - last_frame_ns);
+                smoothed_fps = smoothed_fps == 0.0 ? instant_fps : 0.9*smoothed_fps + 0.1*instant_fps;
+            }
+            last_frame_ns = now;
+
+            if(config.output.overlay && now - last_print_ns >= interval_ns){
+                const double fps = (s.frames - last_print_frames) / ((now - last_print_ns)/1e9);
+                printStatus(s, fps);
+                last_print_ns = now;
+                last_print_frames = s.frames;
+            }
+
+            if(viewer){
+                ViewerStatus view_status;
+                view_status.frame_id = s.frame_id;
+                view_status.state = toString(s.state);
+                view_status.action = toString(s.action);
+                view_status.reason = s.reason;
+                view_status.persons = s.persons;
+                view_status.detector_calls = s.detector_calls;
+                view_status.frames = s.frames;
+                view_status.last_result_age_ms = s.last_result_age_ms;
+                view_status.last_infer_ms = s.last_infer_ms;
+                view_status.motion_score = s.motion_score;
+                view_status.fps = smoothed_fps;
+                view_status.detections = s.detections;
+                view_status.track_ids = s.track_ids;
+                try{
+                    viewer->publish(frame.view, view_status);
+                }
+                catch(const std::exception& error){
+                    std::cerr << "warning: live viewer disabled: " << error.what() << '\n';
+                    viewer.reset();
+                }
+            }
         };
 
         pipeline.run(*source, config.pipeline.max_frames, &g_stop, on_frame);

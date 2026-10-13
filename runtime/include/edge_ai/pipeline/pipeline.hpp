@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <edge_ai/capture/frame_source.hpp>
 #include <edge_ai/config/runtime_config.hpp>
@@ -29,6 +30,8 @@ struct PipelineStatus{
     float last_result_age_ms = -1.0f;
     float last_infer_ms = 0.0f;
     float motion_score = 0.0f;
+    std::vector<Detection> detections;
+    std::vector<int> track_ids;
 };
 
 // The capture/control loop: motion gate -> tracker predict -> scheduler -> async
@@ -47,7 +50,8 @@ class Pipeline{
             FrameSource& source,
             uint64_t max_frames = 0,
             const std::atomic<bool>* stop = nullptr,
-            const std::function<void(const PipelineStatus&)>& on_frame = {}
+            // The frame remains valid for the duration of this callback.
+            const std::function<void(const PipelineStatus&, const Frame&)>& on_frame = {}
         );
 
         // Waits for in-flight inference and applies its result.

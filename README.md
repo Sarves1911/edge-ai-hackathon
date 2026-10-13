@@ -127,7 +127,9 @@ uv sync --extra export
 uv run edge-detect export --model yolov8n.pt --format onnx --imgsz 256 320
 ```
 
-Keep the exported model in `models/` locally. Large model binaries are ignored by git.
+The repository permits the three board-demo exports at `models/yolov8n.onnx`,
+`models/yolov8n-int8.onnx`, and `models/yolov8n-640.onnx`; other model binaries remain
+ignored. The standard demo recording path is `recordings/webcam_raw.mp4`.
 
 Run the same golden input through the native and exported models, then gate them:
 
@@ -151,3 +153,16 @@ floor, or confidence changes beyond the allowed tolerance.
 
 The next gate is the live-camera 100/200/300/500 ms delay sweep with the async worker and
 tracker, followed by the same test on the target board.
+
+## Board demo viewer
+
+The C++ runtime includes a live browser view with server-rendered person boxes and pipeline
+telemetry. The shipped runtime config enables it on port 8080:
+
+```bash
+runtime/build/app/edge_ai_runtime --config runtime/config/runtime.json \
+  --source v4l2:/dev/video0 --model models/yolov8n.onnx
+```
+
+Open `http://<board-ip>:8080`, or tunnel it with
+`ssh -L 8080:localhost:8080 <user>@<board-ip>` and open `http://localhost:8080`.

@@ -43,6 +43,11 @@ mkdir -p models && cd models
 uv run --project .. --extra export edge-detect export --model yolov8n.pt --format onnx --imgsz 256 320
 ```
 
+For an offline board clone, the repository allowlist includes the standard artifacts
+`models/yolov8n.onnx`, `models/yolov8n-int8.onnx`, `models/yolov8n-640.onnx`, and
+`recordings/webcam_raw.mp4`. Keep each file below GitHub's normal per-file limit, or use
+Git LFS instead of committing a partial upload.
+
 ## Run
 
 ```bash
@@ -50,7 +55,7 @@ uv run --project .. --extra export edge-detect export --model yolov8n.pt --forma
 runtime/build/app/edge_ai_runtime --config runtime/config/runtime.json \
     --source replay:recordings/clip.mp4 --realtime
 
-# Live USB camera (Linux)
+# Live USB camera (Linux). runtime.json starts the annotated viewer on port 8080.
 runtime/build/app/edge_ai_runtime --config runtime/config/runtime.json --source v4l2:/dev/video0
 
 # Every-frame synchronous baseline
@@ -60,6 +65,19 @@ runtime/build/app/edge_ai_runtime --source replay:clip.mp4 --mode always --sync 
 runtime/build/app/edge_ai_runtime --config runtime/config/runtime.json --source replay:clip.mp4 --realtime \
     --detector simulated --sim-jsonl runs/cpp-always/detections.jsonl --sim-delay-ms 300
 ```
+
+For the live demo, open `http://<board-ip>:8080` on the Mac. The C++ runtime draws
+tracked person rectangles into a compact JPEG feed and serves live state, action, reason,
+inference time, detector-call count, and FPS beside it. The viewer has no authentication,
+so use it only on a trusted demo network. If venue Wi-Fi blocks device-to-device traffic:
+
+```bash
+ssh -L 8080:localhost:8080 <board-user>@<board-ip>
+# Then open http://localhost:8080
+```
+
+Override the defaults with `--viewer-port <port> --viewer-fps <1-30>`; port `0` disables
+the viewer. `--no-overlay` only disables the terminal status line.
 
 Each run directory contains `effective_config.json`, `frames.csv` (per-frame motion, action,
 reason, state, timings), `detections.jsonl` (Python-compatible schema; tracked boxes carry
@@ -123,6 +141,7 @@ runtime/scripts/v4l2loopback_test.sh           # Linux host: recording -> v4l2lo
 | `metrics` | `Profiler`: CSV/JSONL streaming, summary statistics, CPU/RAM |
 | `config` | `RuntimeConfig` JSON loading and validation |
 | `pipeline` | the capture/control loop composing the modules (used by the app and integration test) |
+| `viewer` | annotated JPEG encoding plus the browser-based live demo server |
 
 ## Ownership rules
 

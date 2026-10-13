@@ -103,3 +103,9 @@ edge_ai_add_module(
     SOURCES pipeline/pipeline.cpp
     DEPS edge_ai::config edge_ai::detector edge_ai::motion edge_ai::tracker edge_ai::scheduler edge_ai::metrics edge_ai::capture
 )
+
+edge_ai_add_module(
+    viewer
+    SOURCES viewer/live_viewer.cpp
+    DEPS edge_ai::core PkgConfig::FFMPEG Threads::Threads
+)

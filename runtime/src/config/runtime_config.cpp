@@ -133,12 +133,23 @@ RuntimeConfig parseConfig(const std::string& json_text){
     read(camera, "poll_timeout_ms", c.camera.poll_timeout_ms);
 
     const json& output = section(root, "output");
-    checkKeys(output, "output", {"directory", "save_frames_csv", "save_jsonl", "overlay", "overlay_interval_ms"});
+    checkKeys(output, "output", {
+        "directory", "save_frames_csv", "save_jsonl", "overlay", "overlay_interval_ms",
+        "viewer_port", "viewer_fps"
+    });
     read(output, "directory", c.output.directory);
     read(output, "save_frames_csv", c.output.save_frames_csv);
     read(output, "save_jsonl", c.output.save_jsonl);
     read(output, "overlay", c.output.overlay);
     read(output, "overlay_interval_ms", c.output.overlay_interval_ms);
+    int64_t viewer_port = c.output.viewer_port;
+    int64_t viewer_fps = c.output.viewer_fps;
+    read(output, "viewer_port", viewer_port);
+    read(output, "viewer_fps", viewer_fps);
+    if(viewer_port < 0 || viewer_port > 65535) throw std::invalid_argument("output.viewer_port must be in [0, 65535]");
+    if(viewer_fps < 1 || viewer_fps > 30) throw std::invalid_argument("output.viewer_fps must be in [1, 30]");
+    c.output.viewer_port = static_cast<uint32_t>(viewer_port);
+    c.output.viewer_fps = static_cast<uint32_t>(viewer_fps);
 
     validateConfig(c);
     return c;
@@ -187,6 +198,10 @@ void validateConfig(const RuntimeConfig& c){
     require(c.camera.width > 0 && c.camera.height > 0 && c.camera.width % 2 == 0, "camera size must be positive with even width");
     require(c.camera.fps > 0, "camera.fps must be positive");
     require(c.camera.buffers >= 2, "camera.buffers must be >= 2");
+
+    require(c.output.overlay_interval_ms > 0, "output.overlay_interval_ms must be positive");
+    require(c.output.viewer_port <= 65535, "output.viewer_port must be in [0, 65535]");
+    require(c.output.viewer_fps >= 1 && c.output.viewer_fps <= 30, "output.viewer_fps must be in [1, 30]");
 }
 
 std::string configToJson(const RuntimeConfig& c){
@@ -231,7 +246,8 @@ std::string configToJson(const RuntimeConfig& c){
     root["output"] = {
         {"directory", c.output.directory}, {"save_frames_csv", c.output.save_frames_csv},
         {"save_jsonl", c.output.save_jsonl}, {"overlay", c.output.overlay},
-        {"overlay_interval_ms", c.output.overlay_interval_ms}
+        {"overlay_interval_ms", c.output.overlay_interval_ms},
+        {"viewer_port", c.output.viewer_port}, {"viewer_fps", c.output.viewer_fps}
     };
     return root.dump(2);
 }

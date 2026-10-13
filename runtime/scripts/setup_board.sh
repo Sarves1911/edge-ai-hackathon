@@ -95,3 +95,5 @@ fi
 
 step "Done"
 echo "Live camera:  ${BUILD_DIR}/app/edge_ai_runtime --config ${RUNTIME_DIR}/config/runtime.json --source v4l2:${DEVICE} --model ${MODEL}"
+echo "Viewer:      http://<board-ip>:8080"
+echo "SSH fallback: ssh -L 8080:localhost:8080 <user>@<board-ip>  (then open http://localhost:8080)"
