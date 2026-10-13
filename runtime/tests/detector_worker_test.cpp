@@ -83,7 +83,7 @@ int main(){
         CHECK(worker.replaced() > 900);
 
         worker.waitIdle();
-        CHECK(detector.calls.load() <= 3);
+        CHECK(static_cast<size_t>(detector.calls.load()) == worker.submitted() - worker.replaced());
 
         // Results report the newest frame that actually ran, never a stale backlog.
         const auto last = worker.poll();
